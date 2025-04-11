@@ -1,0 +1,22 @@
+.product-details {
+    padding: 2rem;
+    text-align: center;
+    font-family: 'Georgia', serif;
+  }
+  
+  .product-details h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .product-details p {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+    color: #555;
+  }
+  
+  .product-details h2 {
+    font-size: 2rem;
+    color: #f39c12;
+  }
+  
