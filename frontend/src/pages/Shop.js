@@ -29,7 +29,7 @@ import {
 import "./Shop.css";
 
 const CART_API_BASE_URL = "http://localhost:5000/api";
-const PRODUCT_API_BASE_URL = "http://localhost:5001/api";
+const PRODUCT_API_BASE_URL = "http://localhost:5001/api/admin"; // Updated API endpoint
 
 const ALL_CATEGORIES = [
   { name: "Lipstick", icon: faWandMagicSparkles },
@@ -85,8 +85,10 @@ const Shop = () => {
       setError("");
       try {
         const productsResponse = await axios.get(`${PRODUCT_API_BASE_URL}/products`, { timeout: 5000 });
-        setProducts(productsResponse.data);
-        setFilteredProducts(productsResponse.data);
+        // Update to use the data property from the admin API response
+        const productsData = productsResponse.data.data || [];
+        setProducts(productsData);
+        setFilteredProducts(productsData);
       } catch (error) {
         console.error("Error fetching products:", error);
         setError(`Failed to load products: ${error.message}`);

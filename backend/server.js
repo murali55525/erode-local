@@ -5,6 +5,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
+const { GridFSBucket } = require('mongodb');
+const crypto = require('crypto');
+
 const User = require("./models/User");
 const Product = require("./models/Product");
 const Review = require("./models/Review");
@@ -35,22 +38,19 @@ require("dotenv").config();
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://mmuralikarthick:murali555@cluster0.vhygzo6.mongodb.net/fancyStore?retryWrites=true&w=majority";
 
+let gfs;
+
 mongoose
   .connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(async () => {
-    console.log("Connected to MongoDB Atlas successfully");
-    // Drop the carts collection if it exists
-    try {
-      await mongoose.connection.collection('carts').drop();
-      console.log('Carts collection dropped');
-    } catch (error) {
-      if (error.code !== 26) { // Error code 26 means collection doesn't exist
-        console.error('Error dropping carts collection:', error);
-      }
-    }
+  .then(() => {
+    console.log("✅ Connected to MongoDB Atlas");
+    gfs = new GridFSBucket(mongoose.connection.db, {
+      bucketName: "uploads"
+    });
+    console.log("✅ GridFS initialized");
   })
   .catch((err) => console.error("MongoDB Atlas connection error:", err));
 
@@ -316,13 +316,16 @@ app.get('/api/admin/users-orders', authenticateToken, async (req, res) => {
 // Product Routes
 app.get("/api/products", async (req, res) => {
   try {
-    const { category } = req.query;
-    const query = category ? { category: category.toLowerCase() } : {};
-    const products = await Product.find(query).lean();
-    res.status(200).json(products);
+    const products = await Product.find().sort({ dateAdded: -1 });
+    // Add image URLs to products
+    const productsWithUrls = products.map(product => ({
+      ...product._doc,
+      imageUrl: product.imageId ? `/api/images/${product.imageId}` : null
+    }));
+    res.status(200).json(productsWithUrls);
   } catch (error) {
     console.error("Error fetching products:", error);
-    res.status(500).json({ message: "Failed to fetch products." });
+    res.status(500).json({ error: "Failed to fetch products: " + error.message });
   }
 });
 app.get("/api/products/:productId/reviews", authenticateToken, async (req, res) => {
@@ -1122,6 +1125,121 @@ app.post('/api/admin/update-product', async (req, res) => {
     res.json({ success: true, data: product });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GridFS setup
+let gridfsBucket;
+mongoose.connection.once('open', () => {
+  gridfsBucket = new GridFSBucket(mongoose.connection.db, {
+    bucketName: 'images'
+  });
+  console.log('GridFS bucket is ready');
+});
+
+// Helper function to upload image to GridFS
+const uploadImageToGridFS = (file) => {
+  return new Promise((resolve, reject) => {
+    const filename = `${crypto.randomBytes(16).toString('hex')}-${file.originalname}`;
+    const uploadStream = gridfsBucket.openUploadStream(filename, {
+      contentType: file.mimetype
+    });
+
+    const readStream = require('stream').Readable.from(file.buffer);
+    readStream.pipe(uploadStream);
+
+    uploadStream.on('finish', () => {
+      resolve(uploadStream.id);
+    });
+
+    uploadStream.on('error', reject);
+  });
+};
+
+// Add route to serve images
+app.get("/api/images/:id", async (req, res) => {
+  try {
+    if (!gfs) {
+      return res.status(500).json({ error: "GridFS not initialized" });
+    }
+
+    const fileId = new mongoose.Types.ObjectId(req.params.id);
+    const files = await gfs.find({ _id: fileId }).toArray();
+    
+    if (!files || files.length === 0) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    const file = files[0];
+    res.set('Content-Type', file.contentType);
+    
+    const readStream = gfs.openDownloadStream(fileId);
+    readStream.pipe(res);
+
+    readStream.on('error', (error) => {
+      console.error('Error streaming file:', error);
+      res.status(500).json({ error: "Error streaming file" });
+    });
+  } catch (error) {
+    console.error("Error fetching image:", error.message);
+    res.status(500).json({ error: "Failed to fetch image" });
+  }
+});
+
+// Add error handler for GridFS operations
+app.use((error, req, res, next) => {
+  if (error.name === 'MongoError' || error.name === 'MongoGridFSError') {
+    console.error('GridFS Error:', error);
+    return res.status(500).json({ error: "File system error" });
+  }
+  next(error);
+});
+
+// Update Product routes to use GridFS
+app.post("/api/products", upload.single("image"), async (req, res) => {
+  try {
+    const { 
+      name, price, category, rating, colors, 
+      availableQuantity, stock, sold, description, offerEnds 
+    } = req.body;
+
+    if (!name?.trim() || !price || !category || !description?.trim()) {
+      return res.status(400).json({ 
+        error: "Name, price, category, and description are required." 
+      });
+    }
+
+    let imageId = null;
+    if (req.file) {
+      imageId = await uploadImageToGridFS(req.file);
+    }
+
+    const product = new Product({
+      name: name.trim(),
+      price: parseFloat(price),
+      category,
+      rating: parseInt(rating) || 0,
+      colors: colors ? colors.split(",").map(color => color.trim()) : [],
+      availableQuantity: parseInt(availableQuantity) || parseInt(stock) || 0,
+      stock: parseInt(stock) || parseInt(availableQuantity) || 0,
+      sold: parseInt(sold) || 0,
+      description: description.trim(),
+      imageId,
+      offerEnds: offerEnds ? new Date(offerEnds) : undefined,
+    });
+
+    await product.save();
+    res.status(201).json({
+      message: "Product added successfully!",
+      product: { 
+        ...product._doc, 
+        _id: product._id,
+        imageUrl: imageId ? `/api/images/${imageId}` : null
+      },
+    });
+  } catch (error) {
+    console.error("Error saving product:", error);
+    res.status(500).json({ error: "Failed to save product: " + error.message });
   }
 });
 

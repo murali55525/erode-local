@@ -8,6 +8,10 @@ const productSchema = new mongoose.Schema({
   colors: [String],
   availableQuantity: { type: Number, default: 1 },
   description: { type: String, required: true },
+  imageId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "images.files", // Reference to GridFS files collection
+  },
 });
 
 module.exports = mongoose.model("Product", productSchema);
