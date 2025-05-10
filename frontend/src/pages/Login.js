@@ -1,16 +1,17 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import * as Components from './Components';
-import styled, { keyframes } from 'styled-components';
-import { FaEye, FaEyeSlash } from "react-icons/fa"; // Icons for password visibility toggle
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
+import * as Components from "./Components";
+import styled, { keyframes } from "styled-components";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { jwtDecode } from "jwt-decode";// To decode Google ID token
 
-// Animation for alert fade-in (unchanged)
+// Animation and styled components remain unchanged
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 `;
 
-// Styled Alert Component - Centered on screen (unchanged)
 const AlertContainer = styled.div`
   position: fixed;
   top: 50%;
@@ -22,7 +23,7 @@ const AlertContainer = styled.div`
   padding: 20px 30px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   color: white;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 16px;
   z-index: 1000;
   animation: ${fadeIn} 0.3s ease-out;
@@ -54,7 +55,6 @@ const AlertCloseButton = styled.button`
   }
 `;
 
-// New styled components for the added features
 const InputWrapper = styled.div`
   position: relative;
   width: 100%;
@@ -68,7 +68,7 @@ const TogglePasswordButton = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  color: #4169E1;
+  color: #4169e1;
   font-size: 16px;
 `;
 
@@ -76,7 +76,7 @@ const ErrorMessage = styled.p`
   color: red;
   font-size: 12px;
   margin: 5px 0 0 0;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
 `;
 
 const CheckboxWrapper = styled.div`
@@ -86,7 +86,7 @@ const CheckboxWrapper = styled.div`
 `;
 
 const CheckboxLabel = styled.label`
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 14px;
   color: #333;
   margin-left: 5px;
@@ -106,7 +106,7 @@ const SocialButton = styled.button`
   border-radius: 5px;
   cursor: not-allowed;
   margin: 0 5px;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
 `;
 
 function CustomAlert({ message, type, onClose }) {
@@ -123,14 +123,14 @@ function Login({ onLoginSuccess }) {
   const [signIn, toggle] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
-    email: localStorage.getItem("rememberedEmail") || "", // Load remembered email
-    password: ""
+    email: localStorage.getItem("rememberedEmail") || "",
+    password: "",
   });
   const [alert, setAlert] = useState(null);
-  const [errors, setErrors] = useState({ email: "", password: "" }); // For form validation
-  const [showPassword, setShowPassword] = useState(false); // Password visibility toggle
-  const [rememberMe, setRememberMe] = useState(false); // Remember Me checkbox
-  const [isLoading, setIsLoading] = useState(false); // Loading state for submission
+  const [errors, setErrors] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -209,23 +209,20 @@ function Login({ onLoginSuccess }) {
       });
       const data = await response.json();
       if (response.ok) {
-        // Store token and user details in localStorage
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
         localStorage.setItem("user", JSON.stringify(data.user));
         localStorage.setItem("isLoggedIn", "true");
 
-        // Handle "Remember Me" functionality
         if (rememberMe) {
           localStorage.setItem("rememberedEmail", formData.email);
         } else {
           localStorage.removeItem("rememberedEmail");
         }
 
-        // Call the onLoginSuccess callback and navigate to the home page
         onLoginSuccess(data.user, data.token);
-        navigate("/home", { replace: true }); // Ensure navigation to the home page
+        navigate("/home", { replace: true });
       } else {
         showAlert(data.message, "error");
       }
@@ -237,8 +234,63 @@ function Login({ onLoginSuccess }) {
     }
   };
 
+  // Handle Google Sign-In success
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setIsLoading(true);
+    try {
+      console.log('Received Google response:', credentialResponse);
+      
+      if (!credentialResponse.credential) {
+        throw new Error('No credential received from Google');
+      }
+
+      const response = await fetch("http://localhost:5000/api/auth/google", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+        },
+        credentials: 'include', // Add this line
+        body: JSON.stringify({ 
+          token: credentialResponse.credential,
+          clientId: "118179755200-u2f3rt2n4oq85mmm6hja4qpqu3cl83ts.apps.googleusercontent.com"
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error('Server error: ' + (response.statusText || 'Unknown error'));
+      }
+
+      const data = await response.json();
+      console.log('Server response:', data);
+
+      if (data.token && data.user) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("isLoggedIn", "true");
+        
+        onLoginSuccess(data.user, data.token);
+        navigate("/home", { replace: true });
+        showAlert("Successfully logged in with Google!", "success");
+      } else {
+        throw new Error('Invalid server response');
+      }
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      showAlert(error.message || "An error occurred during Google login", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Google Sign-In failure
+  const handleGoogleFailure = () => {
+    showAlert("Google Sign-In failed", "error");
+  };
+
   return (
-    <>
+    <GoogleOAuthProvider clientId="118179755200-u2f3rt2n4oq85mmm6hja4qpqu3cl83ts.apps.googleusercontent.com">
       {alert && (
         <CustomAlert
           message={alert.message}
@@ -291,7 +343,16 @@ function Login({ onLoginSuccess }) {
                 {isLoading ? "Signing Up..." : "Sign Up"}
               </Components.Button>
               <SocialLoginContainer>
-                <SocialButton disabled>Google (Coming Soon)</SocialButton>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleFailure}
+                  useOneTap={false}
+                  cookiePolicy={'single_host_origin'}
+                  buttonText="Sign up with Google"
+                  theme="outline"
+                  size="large"
+                  width="100%"
+                />
                 <SocialButton disabled>Facebook (Coming Soon)</SocialButton>
               </SocialLoginContainer>
             </Components.Form>
@@ -342,7 +403,16 @@ function Login({ onLoginSuccess }) {
                 {isLoading ? "Signing In..." : "Sign In"}
               </Components.Button>
               <SocialLoginContainer>
-                <SocialButton disabled>Google (Coming Soon)</SocialButton>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleFailure}
+                  useOneTap={false}
+                  cookiePolicy={'single_host_origin'}
+                  buttonText="Sign in with Google"
+                  theme="outline"
+                  size="large"
+                  width="100%"
+                />
                 <SocialButton disabled>Facebook (Coming Soon)</SocialButton>
               </SocialLoginContainer>
             </Components.Form>
@@ -373,7 +443,7 @@ function Login({ onLoginSuccess }) {
           </Components.OverlayContainer>
         </Components.Container>
       </Components.CenteredContainer>
-    </>
+    </GoogleOAuthProvider>
   );
 }
 
