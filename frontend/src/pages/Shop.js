@@ -24,10 +24,12 @@ import {
   faCrown,
   faLeaf,
   faShoppingCart,
+  faHeart,
 } from "@fortawesome/free-solid-svg-icons";
 import "./Shop.css";
 
-const API_BASE_URL = "http://localhost:5001/api";
+const CART_API_BASE_URL = "http://localhost:5000/api";
+const PRODUCT_API_BASE_URL = "http://localhost:5001/api";
 
 const ALL_CATEGORIES = [
   { name: "Lipstick", icon: faWandMagicSparkles },
@@ -59,6 +61,8 @@ const Shop = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [popupMessage, setPopupMessage] = useState(null); // For showing popup messages
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -80,7 +84,7 @@ const Shop = () => {
       setLoading(true);
       setError("");
       try {
-        const productsResponse = await axios.get(`${API_BASE_URL}/products`, { timeout: 5000 });
+        const productsResponse = await axios.get(`${PRODUCT_API_BASE_URL}/products`, { timeout: 5000 });
         setProducts(productsResponse.data);
         setFilteredProducts(productsResponse.data);
       } catch (error) {
@@ -97,7 +101,7 @@ const Shop = () => {
     if (selectedProduct) {
       const fetchReviews = async () => {
         try {
-          const response = await axios.get(`${API_BASE_URL}/products/${selectedProduct._id}/reviews`, {
+          const response = await axios.get(`${PRODUCT_API_BASE_URL}/products/${selectedProduct._id}/reviews`, {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 5000,
           });
@@ -112,6 +116,24 @@ const Shop = () => {
     }
   }, [selectedProduct, token]);
 
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      try {
+        const response = await axios.get(`${CART_API_BASE_URL}/wishlist`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setWishlist(response.data.items.map((item) => item.productId.toString()));
+      } catch (error) {
+        console.error("Error fetching wishlist:", error);
+        setError("Failed to load wishlist.");
+      }
+    };
+
+    if (token) {
+      fetchWishlist();
+    }
+  }, [token]);
+
   const handleLensSearch = async (file) => {
     if (!file) {
       setError("Please upload an image.");
@@ -123,7 +145,7 @@ const Shop = () => {
     formData.append("image", file);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/products/lens-search`, formData, { timeout: 10000 });
+      const response = await axios.post(`${PRODUCT_API_BASE_URL}/products/lens-search`, formData, { timeout: 10000 });
       setFilteredProducts(response.data.length > 0 ? response.data : []);
       setSearch("");
       setSelectedCategories([]);
@@ -148,7 +170,7 @@ const Shop = () => {
       setSearch(voiceQuery);
       setLoading(true);
       try {
-        const response = await axios.get(`${API_BASE_URL}/products/search?q=${encodeURIComponent(voiceQuery)}`, { timeout: 5000 });
+        const response = await axios.get(`${PRODUCT_API_BASE_URL}/products/search?q=${encodeURIComponent(voiceQuery)}`, { timeout: 5000 });
         setFilteredProducts(response.data);
         setSelectedCategories([]);
       } catch (error) {
@@ -167,8 +189,8 @@ const Shop = () => {
     try {
       const response = await axios.get(
         search.trim()
-          ? `${API_BASE_URL}/products/search?q=${encodeURIComponent(search)}`
-          : `${API_BASE_URL}/products`,
+          ? `${PRODUCT_API_BASE_URL}/products/search?q=${encodeURIComponent(search)}`
+          : `${PRODUCT_API_BASE_URL}/products`,
         { timeout: 5000 }
       );
       setFilteredProducts(response.data);
@@ -205,6 +227,38 @@ const Shop = () => {
     );
   };
 
+  const toggleWishlistItem = async (productId) => {
+    try {
+      if (!token) {
+        setError("Please log in to manage your wishlist.");
+        return;
+      }
+
+      const isInWishlist = wishlist.includes(productId);
+      if (isInWishlist) {
+        await axios.delete(`${CART_API_BASE_URL}/wishlist/remove/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setWishlist((prev) => prev.filter((id) => id !== productId));
+        setPopupMessage("Removed from Wishlist");
+      } else {
+        await axios.post(
+          `${CART_API_BASE_URL}/wishlist/add`,
+          { productId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setWishlist((prev) => [...prev, productId]);
+        setPopupMessage("Added to Wishlist");
+      }
+
+      // Show popup for 2 seconds
+      setTimeout(() => setPopupMessage(null), 2000);
+    } catch (error) {
+      console.error("Error updating wishlist:", error);
+      setError("Failed to update wishlist.");
+    }
+  };
+
   const openModal = (product) => {
     if (!product) return;
     setSelectedProduct(product);
@@ -222,15 +276,29 @@ const Shop = () => {
     setError("");
   };
 
-  const handleAddToCart = (product, fromModal = false) => {
+  const handleAddToCart = async (product, fromModal = false) => {
     if (!product || (fromModal && quantity <= 0)) {
       setError("Invalid product or quantity.");
       return;
     }
-    addToCart({ ...product, quantity: fromModal ? quantity : 1, selectedColor });
+
+    const cartItem = {
+      ...product,
+      quantity: fromModal ? quantity : 1,
+      selectedColor: selectedColor || null,
+    };
+
+    console.log("Add to Cart Payload:", cartItem);
+
+    try {
+      await addToCart(cartItem);
+      setShowPopup(true); // Show confirmation popup
+      setTimeout(() => setShowPopup(false), 2000);
+    } catch (error) {
+      console.error("Error adding to cart:", error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || "Failed to add item to cart.");
+    }
     if (fromModal) setShowModal(false);
-    setShowPopup(true);
-    setTimeout(() => setShowPopup(false), 2000);
   };
 
   const handleSubmitReview = async () => {
@@ -240,7 +308,7 @@ const Shop = () => {
     }
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/products/${selectedProduct._id}/reviews`,
+        `${PRODUCT_API_BASE_URL}/products/${selectedProduct._id}/reviews`,
         {
           reviewText: newReview,
           rating: newRating,
@@ -260,91 +328,97 @@ const Shop = () => {
     }
   };
 
+  const handleImageError = (e) => {
+    e.target.onerror = null; // Prevent infinite loop
+    e.target.src = "https://via.placeholder.com/300x200?text=No+Image"; // External placeholder
+  };
+
   return (
-    <div className="shop-container">
-      <header className="shop-header">
-        <h1>Shop at NEW ERODE FANCY</h1>
-        <div className="filters">
-          <button className="filter-toggle-btn" onClick={() => setShowFilters(!showFilters)}>
-            <FontAwesomeIcon icon={faFilter} /> Filters
-          </button>
-          <div className="search-bar-container">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleTextSearch()}
-              className="search-bar"
-            />
-            <button onClick={handleVoiceSearch} className="search-btn mic-btn" title="Voice Search">
-              <FontAwesomeIcon icon={faMicrophone} />
+    <div className="matte-bg">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="matte-section mb-8">
+          <h1>Shop at NEW ERODE FANCY</h1>
+          <div className="filters">
+            <button className="filter-toggle-btn" onClick={() => setShowFilters(!showFilters)}>
+              <FontAwesomeIcon icon={faFilter} /> Filters
             </button>
-            <label className="search-btn lens-btn" title="Lens Search">
-              <FontAwesomeIcon icon={faCamera} />
+            <div className="search-bar-container">
               <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleLensSearch(e.target.files[0])}
-                style={{ display: "none" }}
+                type="text"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleTextSearch()}
+                className="search-bar"
               />
-            </label>
-          </div>
-          <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="sort-filter">
-            <option value="priceLow">Price: Low to High</option>
-            <option value="priceHigh">Price: High to Low</option>
-            <option value="nameAsc">Name: A-Z</option>
-            <option value="nameDesc">Name: Z-A</option>
-          </select>
-          <div className="price-range">
-            <label>Price: ₹{priceRange.min} - ₹{priceRange.max}</label>
-            <input
-              type="range"
-              min="0"
-              max="1000"
-              value={priceRange.max}
-              onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
-              className="price-slider"
-            />
-          </div>
-        </div>
-        {error && <p className="error-message">{error}</p>}
-      </header>
-
-      <div className="shop-content">
-        <div className={`filter-panel ${showFilters ? "expanded" : ""}`}>
-          <h3>Filter by Category</h3>
-          <div className="category-list">
-            {ALL_CATEGORIES.map((category) => (
-              <label key={category.name} className="category-option">
+              <button onClick={handleVoiceSearch} className="search-btn mic-btn" title="Voice Search">
+                <FontAwesomeIcon icon={faMicrophone} />
+              </button>
+              <label className="search-btn lens-btn" title="Lens Search">
+                <FontAwesomeIcon icon={faCamera} />
                 <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category.name)}
-                  onChange={() => toggleCategory(category.name)}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleLensSearch(e.target.files[0])}
+                  style={{ display: "none" }}
                 />
-                <FontAwesomeIcon icon={category.icon} className="category-icon" />
-                <span>{category.name}</span>
               </label>
-            ))}
+            </div>
+            <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className="sort-filter">
+              <option value="priceLow">Price: Low to High</option>
+              <option value="priceHigh">Price: High to Low</option>
+              <option value="nameAsc">Name: A-Z</option>
+              <option value="nameDesc">Name: Z-A</option>
+            </select>
+            <div className="price-range">
+              <label>Price: ₹{priceRange.min} - ₹{priceRange.max}</label>
+              <input
+                type="range"
+                min="0"
+                max="1000"
+                value={priceRange.max}
+                onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
+                className="price-slider"
+              />
+            </div>
           </div>
-          <button className="apply-filter-btn" onClick={handleFilterApply}>
-            Apply Filters
-          </button>
+          {error && <p className="error-message">{error}</p>}
         </div>
 
-        {loading ? (
-          <div className="loading">Loading products...</div>
-        ) : (
-          <div className={`product-grid ${showFilters ? "filter-expanded" : ""}`}>
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
-                <div key={product._id} className="product-card">
+        <div className="flex gap-8">
+          {/* Filter Panel */}
+          <div className={`matte-card p-4 ${showFilters ? "w-64" : "w-0"}`}>
+            <h3>Filter by Category</h3>
+            <div className="category-list">
+              {ALL_CATEGORIES.map((category) => (
+                <label key={category.name} className="category-option">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category.name)}
+                    onChange={() => toggleCategory(category.name)}
+                  />
+                  <FontAwesomeIcon icon={category.icon} className="category-icon" />
+                  <span>{category.name}</span>
+                </label>
+              ))}
+            </div>
+            <button className="apply-filter-btn" onClick={handleFilterApply}>
+              Apply Filters
+            </button>
+          </div>
+
+          {/* Product Grid */}
+          <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {filteredProducts.map((product) => (
+                <div key={product._id} className="matte-card p-4">
                   {product.imageUrl ? (
                     <img
                       src={product.imageUrl}
                       alt={product.name}
                       className="product-image"
-                      onError={(e) => (e.target.src = "/images/default.jpg")}
+                      onError={handleImageError}
                     />
                   ) : (
                     <div className="no-image-placeholder">No Image Available</div>
@@ -359,15 +433,20 @@ const Shop = () => {
                       <button onClick={() => handleAddToCart(product)} className="add-to-cart-btn">
                         <FontAwesomeIcon icon={faShoppingCart} /> Add to Cart
                       </button>
+                      <button
+                        onClick={() => toggleWishlistItem(product._id)}
+                        className={`wishlist-btn ${wishlist.includes(product._id) ? "in-wishlist" : ""}`}
+                      >
+                        <FontAwesomeIcon icon={faHeart} />
+                        {wishlist.includes(product._id) ? "In Wishlist" : "Add to Wishlist"}
+                      </button>
                     </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <p>No products found matching the selected filters.</p>
-            )}
+              ))}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {showModal && selectedProduct && (
@@ -386,7 +465,7 @@ const Shop = () => {
                     src={selectedProduct.imageUrl}
                     alt={selectedProduct.name}
                     className="product-img-modal"
-                    onError={(e) => (e.target.src = "/images/default.jpg")}
+                    onError={handleImageError}
                   />
                 ) : (
                   <div className="no-image-placeholder">No Image Available</div>

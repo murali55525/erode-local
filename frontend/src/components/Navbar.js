@@ -1,28 +1,33 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaUser, FaSignOutAlt, FaUserCircle, FaShoppingCart, FaChevronDown, FaChevronUp } from "react-icons/fa";
-import "./Navbar.css";
+import { FaUser, FaSignOutAlt, FaUserCircle, FaShoppingCart } from "react-icons/fa";
 
 const API_BASE_URL = "http://localhost:5000";
+const CART_API_BASE_URL = "http://localhost:5000";
 
 const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [cartItems, setCartItems] = useState(0);
   const [user, setUser] = useState(propUser);
-  const dropdownRef = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
   const userDropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // Static categories organized into columns
-  const categories = [
-    ["Lipstick", "Nail Polish", "Soap", "Shampoo", "Perfumes"],
-    ["Bag Items", "Necklace", "Bangles", "Steads", "Hip Band"],
-    ["Earrings", "Cosmetic Makeup", "Slippers", "Shoes", "Watches"],
-    ["Bindi", "Key Chains", "Gift Items", "Rental Jewelry", "Skin Care"],
-    ["Bottles", "Hair Accessories", "Face Masks", "Jewelry Sets", "Rings"]
-  ];
+  // Track scrolling to adjust transparency
+  useEffect(() => {
+    const handleScroll = () => {
+      const offset = window.scrollY;
+      if (offset > 50) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleLogoutClick = useCallback(() => {
     localStorage.removeItem("token");
@@ -31,16 +36,12 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
     onLogout();
     navigate("/login");
     setUser(null);
-    setIsDropdownOpen(false);
     setIsUserDropdownOpen(false);
     setIsMenuOpen(false);
   }, [navigate, onLogout]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
         setIsUserDropdownOpen(false);
       }
@@ -68,7 +69,7 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
 
@@ -102,24 +103,15 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
         return;
       }
 
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
       try {
-        const response = await fetch(`${API_BASE_URL}/api/cart`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
+        const response = await fetch(`${CART_API_BASE_URL}/api/cart`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
-
         if (!response.ok) throw new Error("Failed to fetch cart details");
-
         const data = await response.json();
         setCartItems(data.items?.length || 0);
-      } catch (err) {
-        console.error("Error fetching cart details:", err.message);
+      } catch (error) {
+        console.error("Error fetching cart details:", error);
         setCartItems(0);
       }
     };
@@ -129,138 +121,142 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
 
   const toggleMenu = () => {
     setIsMenuOpen((prev) => !prev);
-    setIsDropdownOpen(false);
-    setIsUserDropdownOpen(false);
-  };
-
-  const toggleDropdown = (e) => {
-    e.stopPropagation();
-    setIsDropdownOpen((prev) => !prev);
     setIsUserDropdownOpen(false);
   };
 
   const toggleUserDropdown = (e) => {
     e.stopPropagation();
     setIsUserDropdownOpen((prev) => !prev);
-    setIsDropdownOpen(false);
   };
 
   const handleLinkClick = () => {
-    setIsDropdownOpen(false);
     setIsUserDropdownOpen(false);
     setIsMenuOpen(false);
   };
 
   return (
-    <nav className="navbar">
-      <div className="navbar-container">
-        <h1 className="logo">New Erode Fancy</h1>
-        <button className="menu-toggle" onClick={toggleMenu}>
-          {isMenuOpen ? "✖" : "☰"}
-        </button>
-        <ul className={`nav-links ${isMenuOpen ? "active" : ""}`}>
-          <li>
-            <Link to="/home" className="nav-link" onClick={handleLinkClick}>
-              Home
-            </Link>
-          </li>
+    <nav 
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled 
+          ? "bg-[#234781]/80 backdrop-blur-md border-b border-[#234781]/20" 
+          : "bg-[#234781]/60 backdrop-blur-sm"
+      } shadow-lg`}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <Link to="/home" className="flex-shrink-0">
+            <h1 className="text-2xl font-bold text-white hover:text-blue-200 transition-colors">
+              New Erode Fancy
+            </h1>
+          </Link>
 
-          <li className="navbar-dropdown" ref={dropdownRef}>
-            <span className="nav-link dropdown-toggle" onClick={toggleDropdown}>
-              Categories
-              {isDropdownOpen ? <FaChevronUp className="dropdown-icon" /> : <FaChevronDown className="dropdown-icon" />}
-            </span>
-            <div className={`navbar-dropdown-content ${isDropdownOpen ? "show" : ""}`}>
-              <div className="dropdown-grid">
-                {categories.map((column, colIndex) => (
-                  <div key={colIndex} className="dropdown-column">
-                    {column.map((category, index) => (
-                      <div key={`${colIndex}-${index}`} className="dropdown-item">
-                        <Link
-                          to={`/shop?category=${encodeURIComponent(category.toLowerCase())}`}
-                          onClick={handleLinkClick}
-                          className="dropdown-link"
-                        >
-                          {category}
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+          <button
+            className="md:hidden p-2 rounded-md text-white hover:bg-white/10 transition-colors"
+            onClick={toggleMenu}
+          >
+            {isMenuOpen ? (
+              <span className="text-2xl">✖</span>
+            ) : (
+              <span className="text-2xl">☰</span>
+            )}
+          </button>
+
+          <div className={`${
+            isMenuOpen 
+              ? 'block absolute top-16 left-0 right-0 bg-black/70 backdrop-blur-lg border-y border-white/10 shadow-lg p-4 md:p-0 md:shadow-none' 
+              : 'hidden'
+            } md:block md:flex-grow md:ml-6`}>
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
+              {["Home", "Shop", "About", "Contact"].map((item) => (
+                <Link
+                  key={item}
+                  to={`/${item.toLowerCase()}`}
+                  className="px-3 py-2 rounded-md text-sm font-medium text-white hover:text-blue-200 hover:bg-white/10 transition-colors"
+                  onClick={handleLinkClick}
+                >
+                  {item}
+                </Link>
+              ))}
             </div>
-          </li>
+          </div>
 
-          <li>
-            <Link to="/shop" className="nav-link" onClick={handleLinkClick}>
-              Shop
-            </Link>
-          </li>
-          <li>
-            <Link to="/about" className="nav-link" onClick={handleLinkClick}>
-              About
-            </Link>
-          </li>
-          <li>
-            <Link to="/contact" className="nav-link" onClick={handleLinkClick}>
-              Contact
-            </Link>
-          </li>
-        </ul>
-        <div className="navbar-right">
-          {isLoggedIn && (
-            <>
-              <div className="user-section" ref={userDropdownRef}>
-                <span className="nav-link user-name" onClick={toggleUserDropdown}>
-                  <FaUser />
-                  {user?.name || "User"}
-                </span>
-                <div className={`user-dropdown-content ${isUserDropdownOpen ? "show" : ""}`}>
-                  <div className="user-dropdown-item user-info">
-                    <div className="user-details">
-                      <img src={user?.profilePicture} alt="Profile" className="profile-picture" />
-                      <span className="user-detail"><strong>{user?.name}</strong></span>
-                      <span className="user-detail email">{user?.email}</span>
+          <div className="flex items-center space-x-4">
+            {isLoggedIn ? (
+              <>
+                <div className="relative" ref={userDropdownRef}>
+                  <button
+                    onClick={toggleUserDropdown}
+                    className="flex items-center space-x-2 px-3 py-2 rounded-full text-white hover:bg-white/10 transition-colors"
+                  >
+                    <FaUser className="h-4 w-4" />
+                    <span>{user?.name || "User"}</span>
+                  </button>
+
+                  {isUserDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg py-1 bg-black/50 backdrop-blur-lg border border-white/10">
+                      <div className="px-4 py-3 border-b border-white/10">
+                        <div className="flex items-center space-x-3">
+                          <img
+                            src={user?.profilePicture}
+                            alt="Profile"
+                            className="h-10 w-10 rounded-full object-cover border-2 border-white/20"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "https://via.placeholder.com/150";
+                            }}
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-white/90">{user?.name}</span>
+                            <span className="text-xs text-white/70">{user?.email}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+                        onClick={handleLinkClick}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <FaUserCircle className="h-4 w-4" />
+                          <span>Profile</span>
+                        </div>
+                      </Link>
+
+                      <button
+                        onClick={handleLogoutClick}
+                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <FaSignOutAlt className="h-4 w-4" />
+                          <span>Logout</span>
+                        </div>
+                      </button>
                     </div>
-                  </div>
-                  <div className="user-dropdown-item">
-                    <Link to="/profile" className="dropdown-link" onClick={handleLinkClick}>
-                      <FaUserCircle /> Profile
-                    </Link>
-                  </div>
-                  <div className="user-dropdown-item">
-                    <Link to="/orders" className="dropdown-link" onClick={handleLinkClick}>
-                      🛒 Order History
-                    </Link>
-                  </div>
-                  <div className="user-dropdown-item">
-                    <Link to="/wishlist" className="dropdown-link" onClick={handleLinkClick}>
-                      ❤️ Wishlist
-                    </Link>
-                  </div>
-                  <div className="user-dropdown-item">
-                    <Link to="/settings" className="dropdown-link" onClick={handleLinkClick}>
-                      ⚙️ Settings
-                    </Link>
-                  </div>
-                  <div className="user-dropdown-item">
-                    <button onClick={handleLogoutClick} className="logout-btn">
-                      <FaSignOutAlt /> Logout
-                    </button>
-                  </div>
+                  )}
                 </div>
-              </div>
-              <Link to="/cart" className="nav-link cart-icon" onClick={handleLinkClick}>
-                <FaShoppingCart />
-                {cartItems > 0 && <span className="cart-count">{cartItems}</span>}
+
+                <Link
+                  to="/cart"
+                  className="relative p-2 text-white hover:text-blue-200 transition-colors"
+                >
+                  <FaShoppingCart className="h-6 w-6" />
+                  {cartItems > 0 && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                      {cartItems}
+                    </span>
+                  )}
+                </Link>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="inline-flex items-center px-4 py-2 border border-white/30 text-sm font-medium rounded-md text-white bg-white/10 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-colors"
+              >
+                Login
               </Link>
-            </>
-          )}
-          {!isLoggedIn && (
-            <Link to="/login" className="nav-link" onClick={handleLinkClick}>
-              Login
-            </Link>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </nav>

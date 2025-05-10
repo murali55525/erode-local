@@ -7,13 +7,16 @@ import { CartProvider } from './pages/CartContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
+
 import Home from './pages/Home';
 import Shop from './pages/Shop';
-import ProductDetails from './pages/ProductDetails';
+
 import Cart from './pages/Cart';
 import AboutUs from './pages/AboutUs';
 import ContactUs from './pages/ContactUs';
+import Profile from './components/Profile';
+import './App.css'; // Add this for global styles
+import './index.css';
 
 function App() {
   return (
@@ -82,7 +85,7 @@ const MainApp = () => {
             element={isLoggedIn ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
           />
           <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
-          <Route path="/signup" element={<Signup />} />
+        
           <Route
             path="/home"
             element={isLoggedIn ? <Home /> : <Navigate to="/login" replace />}
@@ -91,10 +94,7 @@ const MainApp = () => {
             path="/shop"
             element={isLoggedIn ? <Shop /> : <Navigate to="/login" replace />}
           />
-          <Route
-            path="/product/:id"
-            element={isLoggedIn ? <ProductDetails /> : <Navigate to="/login" replace />}
-          />
+          
           <Route
             path="/cart"
             element={isLoggedIn ? <Cart /> : <Navigate to="/login" replace />}
@@ -106,6 +106,10 @@ const MainApp = () => {
           <Route
             path="/contact"
             element={isLoggedIn ? <ContactUs /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/profile"
+            element={isLoggedIn ? <Profile /> : <Navigate to="/login" replace />}
           />
           <Route path="*" element={<div>404: Page Not Found</div>} />
         </Routes>

@@ -1,7 +1,7 @@
 /* Root Variables for Consistent Styling */
 :root {
-  --fancy-blue: #4169e1;
-  --fancy-dark-blue: #2a4b9b;
+  --fancy-blue: #4a90e2;
+  --fancy-dark-blue: #357ab8;
   --text-gray: #555;
   --light-gray: #f5f5f5;
   --border-gray: #ddd;
@@ -290,8 +290,8 @@ body {
 
 .product-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: auto;
+  gap: 10px; /* Ensure buttons are spaced nicely */
+  align-items: center;
 }
 
 .view-details-btn,
@@ -327,6 +327,27 @@ body {
   background: var(--fancy-blue);
   color: #fff;
   transform: scale(1.05);
+}
+
+.wishlist-btn {
+  background: none;
+  border: none;
+  color: var(--text-gray);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.wishlist-btn:hover {
+  background: var(--fancy-blue);
+  color: #fff;
+}
+
+.wishlist-btn.in-wishlist {
+  background: var(--fancy-blue);
+  color: #fff;
 }
 
 /* Modal */
@@ -558,14 +579,38 @@ body {
   padding: 0.75rem 1.5rem;
   border-radius: 10px;
   z-index: 1001;
+  animation: fadeInOut 2s ease-in-out;
 }
 
-/* Loading State */
-.loading {
-  text-align: center;
-  font-size: 1rem;
-  color: var(--text-gray);
-  padding: 2rem;
+.popup.wishlist {
+  background-color: var(--fancy-blue);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
 }
 
 /* Responsive Design */

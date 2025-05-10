@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'; // Updated import for React 18
 import App from './App';
 import { AuthProvider } from './pages/Authcontext';
 import { CartProvider } from './pages/CartContext';
+import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root')); // Use createRoot instead of render
 root.render(

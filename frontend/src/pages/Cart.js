@@ -21,7 +21,6 @@ import {
   FaTimes,
 } from 'react-icons/fa';
 import axios from 'axios';
-import './Cart.css';
 import { debounce } from './utils/debounce';
 
 const Cart = () => {
@@ -56,16 +55,13 @@ const Cart = () => {
   const [showQuickView, setShowQuickView] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
-  // Memoize showToast
   const showToast = useCallback((message, type) => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: '', type: '' }), 3000);
   }, []);
 
-  // Debounced version of refreshCart
   const debouncedRefreshCart = useCallback(debounce(refreshCart, 500), [refreshCart]);
 
-  // Only merge carts on login state change
   useEffect(() => {
     if (isLoggedIn) {
       const performMerge = async () => {
@@ -80,9 +76,8 @@ const Cart = () => {
       };
       performMerge();
     }
-  }, [isLoggedIn, mergeCarts, refreshCart, showToast]);// Only depend on isLoggedIn
+  }, [isLoggedIn, mergeCarts, refreshCart, showToast]);
 
-  // Update selected items when cart changes
   useEffect(() => {
     if (!cartLoading && cart.length > 0) {
       const newSelectedItems = cart.map((item) => item._id || item.productId);
@@ -95,7 +90,6 @@ const Cart = () => {
     }
   }, [cart, cartLoading]);
 
-  // Fetch additional data with error handling
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -126,7 +120,6 @@ const Cart = () => {
     fetchData();
   }, [isLoggedIn]);
 
-  // Handle scroll for back-to-top button
   useEffect(() => {
     const handleScroll = () => setShowBackToTop(window.scrollY > 300);
     window.addEventListener('scroll', handleScroll);
@@ -271,7 +264,14 @@ const Cart = () => {
       const orderResponse = await axios.post(
         'http://localhost:5000/api/orders',
         {
-          items: cart.filter((item) => selectedItems.includes(item._id || item.productId)),
+          items: cart.filter((item) => selectedItems.includes(item._id || item.productId)).map((item) => ({
+            productId: item.productId || item._id,
+            quantity: item.quantity,
+            price: item.price,
+            name: item.name,
+            imageUrl: item.imageUrl,
+            color: item.color,
+          })),
           shippingInfo,
           deliveryType,
           giftOptions,
@@ -283,34 +283,18 @@ const Cart = () => {
         }
       );
 
-      const options = {
-        key: 'rzp_test_mUZPelBGqqVPrG',
-        amount: finalAmount * 100,
-        currency: 'INR',
-        name: 'Fancy Store',
-        description: `Order #${orderResponse.data.orderId}`,
-        order_id: orderResponse.data.orderId,
-        handler: (response) => {
-          showToast(
-            `Payment successful! Payment ID: ${response.razorpay_payment_id}`,
-            'success'
-          );
-          setStep(3);
-          fetchTrackingInfo(orderResponse.data.orderId);
-        },
-        prefill: {
-          name: shippingInfo.name,
-          email: isLoggedIn ? user?.email || 'guest@example.com' : 'guest@example.com',
-          contact: shippingInfo.contact,
-        },
-        theme: { color: '#2b3e7a' },
-      };
+      // Clear the cart after placing the order
+      await axios.delete('http://localhost:5000/api/cart', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
 
-      const rzp1 = new window.Razorpay(options);
-      rzp1.open();
+      refreshCart(); // Refresh the cart context to reflect the cleared cart
+      setSelectedItems([]); // Clear selected items
+      setStep(1); // Reset to the first step
+      showToast('Order placed successfully! Pay on delivery.', 'success');
     } catch (error) {
       console.error('Payment error:', error);
-      showToast('Error processing payment', 'error');
+      showToast('Error processing order', 'error');
     }
   };
 
@@ -343,134 +327,86 @@ const Cart = () => {
 
   if (cartLoading) {
     return (
-      <div className="cart-page">
-        <div className="loading">Loading your cart...</div>
+      <div className="matte-container">
+        <div className="matte-content">
+          <div className="flex justify-center items-center min-h-[300px] text-gray-600 text-xl">
+            Loading your cart...
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="cart-page">
-      <div className="cart-container">
-        <div className="progress-stepper">
-          <div className={`step ${step >= 1 ? 'active' : ''}`}>
-            <FaShoppingCart /> Cart
+    <div className="matte-container">
+      <div className="matte-content">
+        <div className="matte-card">
+          {/* Header Steps */}
+          <div className="flex justify-between items-center p-6 bg-gradient-to-r from-[#234781] to-[#1e3a8a] mb-8">
+            <div className={`flex items-center px-4 py-2 rounded-md ${
+              step >= 1 
+                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                : 'text-white/70'
+            }`}>
+              <FaShoppingCart className="mr-2" /> Cart
+            </div>
+            <div className={`flex items-center px-4 py-2 rounded-md ${
+              step >= 2 
+                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                : 'text-white/70'
+            }`}>
+              <FaTruck className="mr-2" /> Shipping
+            </div>
+            <div className={`flex items-center px-4 py-2 rounded-md ${
+              step >= 3 
+                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                : 'text-white/70'
+            }`}>
+              <FaCreditCard className="mr-2" /> Payment
+            </div>
           </div>
-          <div className={`step ${step >= 2 ? 'active' : ''}`}>
-            <FaTruck /> Shipping
-          </div>
-          <div className={`step ${step >= 3 ? 'active' : ''}`}>
-            <FaCreditCard /> Payment
-          </div>
-        </div>
 
-        {toast.message && (
-          <div className={`toast ${toast.type}`}>
-            {toast.type === 'success' && <FaCheckCircle />} {toast.message}
-          </div>
-        )}
+          {/* Toast Notification */}
+          {toast.message && (
+            <div className={`fixed top-8 right-8 px-6 py-4 rounded-lg flex items-center gap-2 text-white shadow-lg z-50 animate-slideIn ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+              {toast.type === 'success' && <FaCheckCircle />} {toast.message}
+            </div>
+          )}
 
-        <div className={`step-container step-${step}`}>
-          {step === 1 && (
-            <div className="cart-step">
-              {isLoggedIn && (
-                <div className="loyalty-points">
-                  <FaStar /> Loyalty Points: {loyaltyPoints}
-                  <button onClick={redeemPoints} className="redeem-btn">
-                    Redeem
-                  </button>
-                </div>
-              )}
-
-              {cart.length === 0 ? (
-                <p className="empty-cart">
-                  Your cart is empty.{' '}
-                  <span onClick={() => navigate('/shop')} className="shop-link">
-                    Shop Now
-                  </span>
-                </p>
-              ) : (
-                <>
-                  <div className="cart-items">
-                    {cart.map((item) => (
-                      <div key={item._id || item.productId} className="cart-item">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(item._id || item.productId)}
-                          onChange={() => toggleSelection(item._id || item.productId)}
-                          className="item-checkbox"
-                        />
-                        <img
-                          src={
-                            item.imageUrl
-                              ? item.imageUrl.startsWith('http')
-                                ? item.imageUrl
-                                : `http://localhost:5000${item.imageUrl}`
-                              : '/images/default.jpg'
-                          }
-                          alt={item.name}
-                          className="item-image"
-                          onError={(e) => (e.target.src = '/images/default.jpg')}
-                        />
-                        <div className="item-details">
-                          <p className="item-name">{item.name}</p>
-                          <p className="item-price">₹{item.price}</p>
-                          {item.color && (
-                            <p className="item-color">Color: {item.color}</p>
-                          )}
-                          <div className="quantity-controls">
-                            <button
-                              onClick={() => handleQuantityChange(item, -1)}
-                              disabled={item.quantity <= 1}
-                            >
-                              <FaMinus />
-                            </button>
-                            <span>{item.quantity}</span>
-                            <button
-                              onClick={() => handleQuantityChange(item, 1)}
-                              disabled={item.quantity >= (item.availableQuantity || 10)}
-                            >
-                              <FaPlus />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="item-actions">
-                          <button
-                            onClick={() => setShowQuickView(item)}
-                            className="quick-view-btn"
-                          >
-                            <FaEye />
-                          </button>
-                          <button
-                            onClick={() => saveForLater(item)}
-                            className="save-btn"
-                          >
-                            <FaSave />
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(item)}
-                            className="remove-btn"
-                          >
-                            <FaTrash />
-                          </button>
-                          <button
-                            onClick={() => toggleWishlistItem(item.productId)}
-                            className={`wishlist-btn ${
-                              wishlist.includes(item.productId) ? 'active' : ''
-                            }`}
-                          >
-                            <FaHeart />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+          {/* Step 1: Cart Items */}
+          <div className={`p-8 ${step === 1 ? 'block' : 'hidden'}`}>
+            {step === 1 && (
+              <div className="flex flex-col gap-6">
+                {isLoggedIn && (
+                  <div className="flex items-center bg-[#234781]/10 px-4 py-3 rounded-lg font-medium mb-4 text-[#234781]">
+                    <FaStar className="mr-2 text-[#234781]" /> Loyalty Points: {loyaltyPoints}
+                    <button 
+                      onClick={redeemPoints} 
+                      className="ml-auto bg-[#234781] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#1e3a8a] transition"
+                    >
+                      Redeem
+                    </button>
                   </div>
+                )}
 
-                  {savedForLater.length > 0 && (
-                    <div className="saved-items">
-                      <h3>Saved for Later</h3>
-                      {savedForLater.map((item) => (
-                        <div key={item._id || item.productId} className="saved-item">
+                {cart.length === 0 ? (
+                  <p className="text-center py-12 text-gray-600 text-lg">
+                    Your cart is empty.{' '}
+                    <span onClick={() => navigate('/shop')} className="text-blue-600 underline font-medium cursor-pointer hover:text-blue-800">
+                      Shop Now
+                    </span>
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-4">
+                      {cart.map((item) => (
+                        <div key={item._id || item.productId} className="grid grid-cols-[auto_100px_1fr_auto] gap-4 p-5 rounded-xl bg-white/80 shadow-sm border border-[#234781]/10 hover:shadow-md transition items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(item._id || item.productId)}
+                            onChange={() => toggleSelection(item._id || item.productId)}
+                            className="w-5 h-5 accent-blue-600 cursor-pointer"
+                          />
                           <img
                             src={
                               item.imageUrl
@@ -480,90 +416,181 @@ const Cart = () => {
                                 : '/images/default.jpg'
                             }
                             alt={item.name}
+                            className="w-24 h-24 object-cover rounded-lg shadow-sm"
                             onError={(e) => (e.target.src = '/images/default.jpg')}
                           />
-                          <p>{item.name}</p>
-                          <button onClick={() => moveToCart(item)}>Move to Cart</button>
+                          <div className="flex flex-col gap-2">
+                            <p className="font-semibold text-lg text-gray-800">{item.name}</p>
+                            <p className="font-semibold text-blue-600 text-lg">₹{item.price}</p>
+                            {item.color && (
+                              <p className="text-gray-600 text-sm">Color: {item.color}</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => handleQuantityChange(item, -1)}
+                                disabled={item.quantity <= 1}
+                                className="w-8 h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <FaMinus />
+                              </button>
+                              <span className="font-medium w-8 text-center">{item.quantity}</span>
+                              <button
+                                onClick={() => handleQuantityChange(item, 1)}
+                                disabled={item.quantity >= (item.availableQuantity || 10)}
+                                className="w-8 h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <FaPlus />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowQuickView(item)}
+                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition"
+                            >
+                              <FaEye />
+                            </button>
+                            <button
+                              onClick={() => saveForLater(item)}
+                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-yellow-600 hover:text-white transition"
+                            >
+                              <FaSave />
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item)}
+                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition"
+                            >
+                              <FaTrash />
+                            </button>
+                            <button
+                              onClick={() => toggleWishlistItem(item.productId)}
+                              className={`w-9 h-9 rounded-full flex items-center justify-center transition ${wishlist.includes(item.productId) ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600'}`}
+                            >
+                              <FaHeart />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  )}
 
-                  <div className="cart-summary">
-                    <p>Subtotal: ₹{totalAmount}</p>
-                    <p>Discount: ₹{discount}</p>
-                    <p>Delivery: ₹{deliveryCharge}</p>
-                    <p>Gift Wrapping: ₹{giftCharge}</p>
-                    <p className="total">Total: ₹{finalAmount}</p>
-                    <div className="coupon-section">
-                      <input
-                        type="text"
-                        placeholder="Enter Coupon Code"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                        className="coupon-input"
-                      />
+                    {savedForLater.length > 0 && (
+                      <div className="mt-8">
+                        <h3 className="text-xl font-semibold text-gray-700 mb-4 pl-3 border-l-4 border-blue-600">Saved for Later</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {savedForLater.map((item) => (
+                            <div key={item._id || item.productId} className="flex flex-col items-center p-4 rounded-lg bg-gray-50 border border-gray-200">
+                              <img
+                                src={
+                                  item.imageUrl
+                                    ? item.imageUrl.startsWith('http')
+                                      ? item.imageUrl
+                                      : `http://localhost:5000${item.imageUrl}`
+                                    : '/images/default.jpg'
+                                }
+                                alt={item.name}
+                                className="w-24 h-24 object-cover rounded-lg mb-3"
+                                onError={(e) => (e.target.src = '/images/default.jpg')}
+                              />
+                              <p className="font-medium text-center mb-3">{item.name}</p>
+                              <button 
+                                onClick={() => moveToCart(item)}
+                                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+                              >
+                                Move to Cart
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Summary Card */}
+                    <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-md border border-[#234781]/10 mt-6">
+                      <div className="space-y-3">
+                        <p className="flex justify-between pb-2 border-b border-gray-200">Subtotal: <span>₹{totalAmount}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200">Discount: <span>₹{discount}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200">Delivery: <span>₹{deliveryCharge}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200">Gift Wrapping: <span>₹{giftCharge}</span></p>
+                        <p className="flex justify-between pt-2 font-bold text-xl text-blue-600">Total: <span>₹{finalAmount}</span></p>
+                      </div>
+                      <div className="flex gap-2 mt-6">
+                        <input
+                          type="text"
+                          placeholder="Enter Coupon Code"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          className="matte-input px-4 py-3 w-full"
+                        />
+                        <button
+                          onClick={applyCoupon}
+                          className="matte-button px-6 py-3 w-full"
+                          disabled={promoApplied}
+                        >
+                          Apply
+                        </button>
+                      </div>
                       <button
-                        onClick={applyCoupon}
-                        className="apply-coupon-btn"
-                        disabled={promoApplied}
+                        onClick={() => setStep(2)}
+                        className={`w-full mt-6 bg-[#234781] text-white px-6 py-4 rounded-lg font-semibold text-lg hover:bg-[#1e3a8a] transition hover:-translate-y-1 shadow-lg ${
+                          selectedItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={selectedItems.length === 0}
                       >
-                        Apply
+                        Proceed to Shipping
                       </button>
                     </div>
-                    <button
-                      onClick={() => setStep(2)}
-                      className="proceed-btn"
-                      disabled={selectedItems.length === 0}
-                    >
-                      Proceed to Shipping
-                    </button>
-                  </div>
 
-                  {recommendations.length > 0 && (
-                    <div className="recommendations">
-                      <h3>You Might Also Like</h3>
-                      <div className="rec-grid">
-                        {recommendations.map((item) => (
-                          <div key={item._id} className="rec-item">
-                            <img
-                              src={
-                                item.imageUrl
-                                  ? item.imageUrl.startsWith('http')
-                                    ? item.imageUrl
-                                    : `http://localhost:5000${item.imageUrl}`
-                                  : '/images/default.jpg'
-                              }
-                              alt={item.name}
-                              onError={(e) => (e.target.src = '/images/default.jpg')}
-                            />
-                            <p>{item.name}</p>
-                            <p>₹{item.price}</p>
-                            <button
-                              onClick={() =>
-                                handleAddToCart({
-                                  ...item,
-                                  quantity: 1,
-                                  productId: item._id,
-                                })
-                              }
-                            >
-                              Add to Cart
-                            </button>
-                          </div>
-                        ))}
+                    {/* Recommendations */}
+                    {recommendations.length > 0 && (
+                      <div className="mt-10">
+                        <h3 className="text-xl font-semibold text-gray-700 mb-6 pl-3 border-l-4 border-blue-600">You Might Also Like</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                          {recommendations.map((item) => (
+                            <div key={item._id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition border border-gray-200 flex flex-col">
+                              <img
+                                src={
+                                  item.imageUrl
+                                    ? item.imageUrl.startsWith('http')
+                                      ? item.imageUrl
+                                      : `http://localhost:5000${item.imageUrl}`
+                                    : '/images/default.jpg'
+                                }
+                                alt={item.name}
+                                className="w-full h-40 object-cover"
+                                onError={(e) => (e.target.src = '/images/default.jpg')}
+                              />
+                              <div className="p-4 flex flex-col flex-grow">
+                                <p className="font-medium mb-2">{item.name}</p>
+                                <p className="font-semibold text-blue-600 mb-4">₹{item.price}</p>
+                                <button
+                                  onClick={() =>
+                                    handleAddToCart({
+                                      ...item,
+                                      quantity: 1,
+                                      productId: item._id,
+                                    })
+                                  }
+                                  className="mt-auto bg-blue-50 text-blue-600 border border-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition"
+                                >
+                                  Add to Cart
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
+          {/* Step 2: Shipping Details */}
           {step === 2 && (
-            <div className="shipping-step">
-              <div className="shipping-section">
-                <h2>Shipping Details</h2>
+            <div className="p-8">
+              <div className="max-w-2xl mx-auto">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-8 text-center">Shipping Details</h2>
                 {['name', 'address', 'city', 'postalCode', 'contact'].map((field) => (
                   <input
                     key={field}
@@ -579,32 +606,34 @@ const Cart = () => {
                         [field]: e.target.value,
                       })
                     }
-                    className="shipping-input"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 ))}
-                <div className="delivery-options">
-                  <label className="delivery-option">
+                <div className="flex flex-col gap-3 my-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <label className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer border border-gray-200 hover:bg-blue-50 transition">
                     <input
                       type="radio"
                       value="normal"
                       checked={deliveryType === 'normal'}
                       onChange={() => setDeliveryType('normal')}
+                      className="w-5 h-5 accent-blue-600"
                     />
                     <span>Normal (₹20, Est. {calculateDeliveryDate()})</span>
                   </label>
-                  <label className="delivery-option">
+                  <label className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer border border-gray-200 hover:bg-blue-50 transition">
                     <input
                       type="radio"
                       value="express"
                       checked={deliveryType === 'express'}
                       onChange={() => setDeliveryType('express')}
+                      className="w-5 h-5 accent-blue-600"
                     />
                     <span>Express (₹50, Est. {calculateDeliveryDate()})</span>
                   </label>
                 </div>
-                <div className="gift-section">
-                  <label>
+                <div className="my-6 p-4 bg-red-50 rounded-lg border border-red-200">
+                  <label className="flex items-center gap-3 font-medium text-gray-700">
                     <input
                       type="checkbox"
                       checked={giftOptions.wrapping}
@@ -614,6 +643,7 @@ const Cart = () => {
                           wrapping: e.target.checked,
                         })
                       }
+                      className="w-5 h-5 accent-red-600"
                     />
                     Add Gift Wrapping (+₹50)
                   </label>
@@ -627,7 +657,7 @@ const Cart = () => {
                           message: e.target.value,
                         })
                       }
-                      className="gift-message"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg mt-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent min-h-[100px]"
                     />
                   )}
                 </div>
@@ -635,17 +665,17 @@ const Cart = () => {
                   placeholder="Order Notes"
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
-                  className="order-notes"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[100px]"
                 />
-                <div className="shipping-summary">
-                  <p>Estimated Delivery: {calculateDeliveryDate()}</p>
-                  <p>Total: ₹{finalAmount}</p>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 my-6">
+                  <p className="font-medium mb-2">Estimated Delivery: {calculateDeliveryDate()}</p>
+                  <p className="font-bold text-blue-600 text-xl">Total: ₹{finalAmount}</p>
                 </div>
-                <div className="step-buttons">
-                  <button onClick={() => setStep(1)} className="back-btn">
+                <div className="flex gap-4 mt-8">
+                  <button onClick={() => setStep(1)} className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
                     Back
                   </button>
-                  <button onClick={handlePayment} className="proceed-btn">
+                  <button onClick={handlePayment} className="flex-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
                     Proceed to Payment
                   </button>
                 </div>
@@ -653,79 +683,82 @@ const Cart = () => {
             </div>
           )}
 
+          {/* Step 3: Payment Confirmation */}
           {step === 3 && (
-            <div className="payment-step">
-              <div className="payment-section">
-                <h2>Payment</h2>
-                <p className="final-amount">Final Amount: ₹{finalAmount}</p>
-                <button onClick={handlePayment} className="pay-btn">
-                  Pay Now
+            <div className="p-8">
+              <div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md text-center">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-6">Payment</h2>
+                <p className="text-3xl font-bold text-blue-600 mb-8">Final Amount: ₹{finalAmount}</p>
+                <button 
+                  onClick={handlePayment} 
+                  className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition hover:-translate-y-1 shadow-lg"
+                >
+                  Confirm Order (Pay on Delivery)
                 </button>
-                {trackingInfo && (
-                  <button
-                    onClick={() => setShowTracking(true)}
-                    className="track-btn"
-                  >
-                    <FaSearch /> Track Order
-                  </button>
-                )}
               </div>
             </div>
           )}
+
+          {/* Tracking Info Modal */}
+          {showTracking && trackingInfo && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-8 rounded-xl relative w-full max-w-md max-h-[80vh] overflow-y-auto">
+                <h3 className="text-xl font-semibold mb-4">Order Tracking</h3>
+                <p className="flex items-center gap-2 mb-2">
+                  <FaMapMarkerAlt className="text-blue-600" /> Status: {trackingInfo.status}
+                </p>
+                <p className="flex items-center gap-2">
+                  <FaClock className="text-blue-600" /> Estimated Delivery: {trackingInfo.estimatedDelivery}
+                </p>
+                <button
+                  onClick={() => setShowTracking(false)}
+                  className="absolute top-4 right-4 bg-gray-200 text-gray-700 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 hover:text-white transition"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick View Modal */}
+          {showQuickView && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-8 rounded-xl relative w-full max-w-md max-h-[80vh] overflow-y-auto flex flex-col items-center gap-4">
+                <img
+                  src={
+                    showQuickView.imageUrl
+                      ? showQuickView.imageUrl.startsWith('http')
+                        ? showQuickView.imageUrl
+                        : `http://localhost:5000${showQuickView.imageUrl}`
+                      : '/images/default.jpg'
+                  }
+                  alt={showQuickView.name}
+                  className="w-48 h-48 object-cover rounded-lg"
+                  onError={(e) => (e.target.src = '/images/default.jpg')}
+                />
+                <h3 className="text-xl font-semibold text-center">{showQuickView.name}</h3>
+                <p className="text-xl font-bold text-blue-600">₹{showQuickView.price}</p>
+                <p className="text-center mb-4">{showQuickView.description || 'No description available'}</p>
+                <button
+                  onClick={() => setShowQuickView(null)}
+                  className="absolute top-4 right-4 bg-gray-200 text-gray-700 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 hover:text-white transition"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Back to Top Button */}
+          {showBackToTop && (
+            <button 
+              onClick={scrollToTop} 
+              className="fixed bottom-8 right-8 bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition hover:-translate-y-1 z-40"
+            >
+              <FaArrowUp />
+            </button>
+          )}
         </div>
-
-        {showTracking && trackingInfo && (
-          <div className="tracking-modal">
-            <div className="tracking-content">
-              <h3>Order Tracking</h3>
-              <p>
-                <FaMapMarkerAlt /> Status: {trackingInfo.status}
-              </p>
-              <p>
-                <FaClock /> Estimated Delivery: {trackingInfo.estimatedDelivery}
-              </p>
-              <button
-                onClick={() => setShowTracking(false)}
-                className="close-btn"
-              >
-                <FaTimes />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {showQuickView && (
-          <div className="quick-view-modal">
-            <div className="quick-view-content">
-              <img
-                src={
-                  showQuickView.imageUrl
-                    ? showQuickView.imageUrl.startsWith('http')
-                      ? showQuickView.imageUrl
-                      : `http://localhost:5000${showQuickView.imageUrl}`
-                    : '/images/default.jpg'
-                }
-                alt={showQuickView.name}
-                onError={(e) => (e.target.src = '/images/default.jpg')}
-              />
-              <h3>{showQuickView.name}</h3>
-              <p>₹{showQuickView.price}</p>
-              <p>{showQuickView.description || 'No description available'}</p>
-              <button
-                onClick={() => setShowQuickView(null)}
-                className="close-btn"
-              >
-                <FaTimes />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {showBackToTop && (
-          <button className="back-to-top" onClick={scrollToTop}>
-            <FaArrowUp />
-          </button>
-        )}
       </div>
     </div>
   );
