@@ -4,7 +4,6 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
-const path = require("path");
 const { GridFSBucket } = require("mongodb");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
@@ -32,13 +31,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-app.use("/uploads", express.static(path.join(__dirname, "Uploads")));
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "Uploads/"),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-const upload = multer({ storage });
 
 require("dotenv").config();
 
@@ -56,7 +48,7 @@ mongoose
   .then(() => {
     console.log("✅ Connected to MongoDB Atlas");
     gfs = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "uploads",
+      bucketName: "images",
     });
     console.log("✅ GridFS initialized");
   })
@@ -97,6 +89,29 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
+// Multer for in-memory storage (for GridFS)
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// GridFS Helper Function
+const uploadImageToGridFS = (file) => {
+  return new Promise((resolve, reject) => {
+    const filename = `${crypto.randomBytes(16).toString("hex")}-${file.originalname}`;
+    const uploadStream = gfs.openUploadStream(filename, {
+      contentType: file.mimetype,
+    });
+
+    const readStream = require("stream").Readable.from(file.buffer);
+    readStream.pipe(uploadStream);
+
+    uploadStream.on("finish", () => {
+      resolve(uploadStream.id);
+    });
+
+    uploadStream.on("error", reject);
+  });
+};
+
 // Authentication Routes
 app.post("/api/auth/signup", async (req, res) => {
   const { name, email, password } = req.body;
@@ -129,14 +144,12 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Handle Google users
     if (user.isGoogle) {
       return res.status(400).json({
         message: "Please use Google Sign-In for this account",
       });
     }
 
-    // Handle regular users
     if (!password) {
       return res.status(400).json({ message: "Password is required for non-Google accounts" });
     }
@@ -156,7 +169,7 @@ app.post("/api/auth/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        profilePicture: user.profilePicture || null,
+        profileImage: user.profileImage ? `http://localhost:5000/api/images/${user.profileImage}` : null,
       },
       token,
     });
@@ -168,153 +181,64 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/google-login", async (req, res) => {
   try {
-    console.log("Received Google auth request:", req.body);
     const { idToken, email, googleId } = req.body;
 
     if (!idToken) {
-      console.log("No ID token provided");
       return res.status(400).json({ message: "Google ID token is required" });
     }
 
-    // Verify Google ID token
     const ticket = await client.verifyIdToken({
       idToken,
       audience: "118179755200-u2f3rt2n4oq85mmm6hja4qpqu3cl83ts.apps.googleusercontent.com",
     });
 
     const payload = ticket.getPayload();
-    console.log("Google payload:", payload);
     if (payload.email !== email || payload.sub !== googleId) {
-      console.log("Token validation failed");
       return res.status(401).json({ message: "Invalid Google token" });
     }
 
     const { sub: googleIdFromToken, email: emailFromToken, name, picture } = payload;
 
-    // Find or create user
     let user = await User.findOne({ $or: [{ email: emailFromToken }, { googleId: googleIdFromToken }] });
 
     if (!user) {
-      // Create new user
       user = new User({
         name,
         email: emailFromToken,
         googleId: googleIdFromToken,
-        profilePicture: picture,
+        profileImage: picture, // Store Google profile picture URL or GridFS ID if uploaded
         isGoogle: true,
         lastLogin: new Date(),
       });
-      console.log("Creating new Google user:", { name, email: emailFromToken, googleId: googleIdFromToken });
       await user.save();
-      console.log("New Google user created with ID:", user._id);
     } else {
-      // Update existing user
       user.lastLogin = new Date();
       user.googleId = googleIdFromToken;
       user.name = name;
-      if (picture) user.profilePicture = picture;
+      if (picture && !user.profileImage) user.profileImage = picture;
       user.isGoogle = true;
-      console.log("Updating existing user:", user._id);
       await user.save();
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    console.log("Sending successful response for user:", user._id);
     res.status(200).json({
       message: "Google login successful",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        profilePicture: user.profilePicture || null,
+        profileImage: user.profileImage ? `http://localhost:5000/api/images/${user.profileImage}` : null,
       },
       token,
     });
   } catch (error) {
     console.error("Google Auth Error:", error);
     res.status(400).json({ message: "Invalid Google token or server error" });
-  }
-});
-
-app.post('/api/auth/google', async (req, res) => {
-  try {
-    console.log('Received Google auth request');
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ message: 'Token is required' });
-    }
-
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: '118179755200-u2f3rt2n4oq85mmm6hja4qpqu3cl83ts.apps.googleusercontent.com',
-    });
-
-    const payload = ticket.getPayload();
-    console.log('Google payload:', payload);
-    const { email, name, picture, sub: googleId } = payload;
-
-    try {
-      // Find user by email or googleId
-      let user = await User.findOne({ $or: [{ email }, { googleId }] });
-      
-      if (!user) {
-        // Create new user
-        const newUser = new User({
-          name,
-          email,
-          googleId,
-          profilePicture: picture,
-          isGoogle: true,
-          password: await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10),
-          createdAt: new Date(),
-          lastLogin: new Date()
-        });
-
-        user = await newUser.save();
-        console.log('Created new Google user:', user._id);
-      } else {
-        // Update existing user
-        user.lastLogin = new Date();
-        user.googleId = googleId;
-        user.name = name;
-        if (picture) user.profilePicture = picture;
-        user.isGoogle = true;
-        await user.save();
-        console.log('Updated existing user:', user._id);
-      }
-
-      const token = jwt.sign(
-        { userId: user._id, email: user.email },
-        JWT_SECRET,
-        { expiresIn: '1h' }
-      );
-
-      res.status(200).json({
-        message: "Login successful",
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          profilePicture: user.profilePicture
-        },
-        token
-      });
-
-    } catch (dbError) {
-      console.error('Database error:', dbError);
-      res.status(500).json({ message: 'Database error occurred' });
-    }
-
-  } catch (error) {
-    console.error('Google Auth Error:', error);
-    res.status(401).json({ message: 'Invalid Google token' });
   }
 });
 
@@ -325,13 +249,101 @@ app.get("/api/users/me", authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.status(200).json(user);
+    res.status(200).json({
+      ...user,
+      profileImage: user.profileImage ? `http://localhost:5000/api/images/${user.profileImage}` : null,
+    });
   } catch (error) {
     console.error("User fetch error:", error);
     res.status(500).json({ message: "Failed to fetch user" });
   }
 });
+app.get("/api/admin/users/all", async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password")
+      .populate('addresses')
+      .lean();
 
+    const usersWithDetails = await Promise.all(users.map(async (user) => {
+      const orders = await Order.find({ userId: user._id }).lean();
+      const cart = await Cart.findOne({ userId: user._id }).lean();
+      const wishlist = await Wishlist.findOne({ userId: user._id }).lean();
+
+      return {
+        id: user._id,
+        name: user.name || "Unknown",
+        email: user.email || "No email",
+        phone: user.phone || "No phone",
+        profileImage: user.profileImage
+          ? `http://localhost:5000/api/images/${user.profileImage}`
+          : null,
+        isGoogle: user.isGoogle || false,
+        lastLogin: user.lastLogin || null,
+        createdAt: user.createdAt || null,
+        updatedAt: user.updatedAt || null,
+        addresses: user.addresses || [],
+        orderHistory: {
+          total: orders.length,
+          totalSpent: orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+          lastOrder: orders[0] || null
+        },
+        cartItems: cart?.items?.length || 0,
+        wishlistItems: wishlist?.items?.length || 0,
+        role: user.role || 'user',
+        status: user.status || 'active',
+        verificationStatus: user.verified ? 'Verified' : 'Unverified',
+        loginHistory: user.loginHistory || [],
+        preferredCategories: user.preferredCategories || [],
+        notifications: user.notifications || {
+          email: true,
+          push: true,
+          sms: false
+        }
+      };
+    }));
+
+    console.log(`Fetched ${users.length} users with detailed information`);
+
+    res.status(200).json({
+      success: true,
+      data: usersWithDetails,
+      total: users.length,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error("Error fetching all users:", error.stack);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+      error: error.message
+    });
+  }
+});
+app.get("/api/admin/orders-stats", async (req, res) => {
+  // WARNING: This endpoint is publicly accessible without authentication.
+  // In production, secure it with an API key, IP whitelisting, or other access control.
+  try {
+    console.log("Fetching orders stats (no auth)");
+    const orders = await Order.find().lean();
+    const stats = {
+      total: orders.length,
+      pending: orders.filter((o) => o.status === "Pending").length,
+      delivered: orders.filter((o) => o.status === "Delivered").length,
+      totalRevenue: orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+    };
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    console.error("Error fetching orders stats:", error.stack);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Updated Profile Picture Upload Endpoint
 app.post("/api/users/me/profile-picture", authenticateToken, upload.single("profilePicture"), async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -339,9 +351,22 @@ app.post("/api/users/me/profile-picture", authenticateToken, upload.single("prof
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    user.profilePicture = `/uploads/${req.file.filename}`;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Upload image to GridFS
+    const imageId = await uploadImageToGridFS(req.file);
+
+    // Update user's profileImage with GridFS file ID
+    user.profileImage = imageId;
     await user.save();
-    res.status(200).json({ message: "Profile picture updated", profilePicture: user.profilePicture });
+
+    res.status(200).json({
+      message: "Profile picture updated",
+      profileImage: `http://localhost:5000/api/images/${imageId}`,
+    });
   } catch (error) {
     console.error("Error uploading profile picture:", error);
     res.status(500).json({ message: "Failed to upload profile picture" });
@@ -366,25 +391,105 @@ app.delete("/api/users/me", authenticateToken, async (req, res) => {
   }
 });
 
-app.get("/api/user/:userId", authenticateToken, async (req, res) => {
-  const { userId } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(userId)) {
-    return res.status(400).json({ message: "Invalid userId." });
-  }
-  if (req.user.userId !== userId) {
-    return res.status(403).json({ message: "Unauthorized access" });
-  }
+// Add this new endpoint for updating user settings
+app.put("/api/user/settings", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(userId).select("-password");
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
+    const { email, name, phone } = req.body;
+    const userId = req.user.userId;
+
+    console.log('Updating user settings:', { userId, email, name, phone });
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 
+        $set: { 
+          email: email || undefined,
+          name: name || undefined,
+          phone: phone || ''
+        } 
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
     }
-    res.status(200).json(user);
-  } catch (err) {
-    console.error("Error fetching user data:", err);
-    res.status(500).json({ message: "Error fetching user data." });
+
+    console.log('User updated:', updatedUser);
+
+    res.json({
+      success: true,
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        profileImage: updatedUser.profileImage ? `/api/images/${updatedUser.profileImage}` : null,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating user settings:", error);
+    res.status(500).json({ message: "Failed to update settings", error: error.message });
   }
 });
+
+// Password change endpoint
+app.put("/api/user/change-password", authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res.status(500).json({ message: "Failed to change password" });
+  }
+});
+
+// Image Serving Endpoint
+app.get("/api/images/:id", async (req, res) => {
+  try {
+    if (!gfs) {
+      return res.status(500).json({ error: "GridFS not initialized" });
+    }
+
+    const fileId = new mongoose.Types.ObjectId(req.params.id);
+    const files = await gfs.find({ _id: fileId }).toArray();
+
+    if (!files || files.length === 0) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    const file = files[0];
+    res.set("Content-Type", file.contentType);
+
+    const readStream = gfs.openDownloadStream(fileId);
+    readStream.pipe(res);
+
+    readStream.on("error", (error) => {
+      console.error("Error streaming file:", error);
+      res.status(500).json({ error: "Error streaming file" });
+    });
+  } catch (error) {
+    console.error("Error fetching image:", error.message);
+    res.status(500).json({ error: "Failed to fetch image" });
+  }
+});
+
 
 // Admin Analytics
 app.get("/api/admin/users-orders", authenticateToken, async (req, res) => {
@@ -1272,15 +1377,26 @@ app.post('/api/orders/complete', authenticateToken, async (req, res) => {
   try {
     const { orderId, items, shippingInfo, totalAmount, paymentId } = req.body;
 
+    // Map items to include imageId if available
+    const processedItems = items.map(item => ({
+      productId: item.productId,
+      quantity: item.quantity || 1,
+      price: item.price,
+      name: item.name,
+      imageId: item.imageId, // Include GridFS image ID
+      imageUrl: item.imageUrl, // Keep imageUrl as fallback
+      color: item.color
+    }));
+
     const order = new Order({
       userId: req.user.userId,
       orderId,
-      items,
+      items: processedItems,
       shippingInfo,
       totalAmount,
       paymentId,
-      status: 'Processing',      // Changed from 'Paid' to 'Processing'
-      paymentStatus: 'Completed' // Payment status is 'Completed'
+      status: 'Processing',
+      paymentStatus: 'Completed'
     });
 
     await order.save();
@@ -1302,10 +1418,10 @@ app.post('/api/orders/complete', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Order completion error:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: 'Failed to complete order',
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -1320,23 +1436,7 @@ mongoose.connection.once("open", () => {
 });
 
 // Helper function to upload image to GridFS
-const uploadImageToGridFS = (file) => {
-  return new Promise((resolve, reject) => {
-    const filename = `${crypto.randomBytes(16).toString("hex")}-${file.originalname}`;
-    const uploadStream = gridfsBucket.openUploadStream(filename, {
-      contentType: file.mimetype,
-    });
 
-    const readStream = require("stream").Readable.from(file.buffer);
-    readStream.pipe(uploadStream);
-
-    uploadStream.on("finish", () => {
-      resolve(uploadStream.id);
-    });
-
-    uploadStream.on("error", reject);
-  });
-};
 
 // Add route to serve images
 app.get("/api/images/:id", async (req, res) => {

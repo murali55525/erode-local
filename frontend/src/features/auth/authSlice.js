@@ -1,10 +1,19 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 const initialState = {
   isLoggedIn: false,
   user: null,
   token: null,
 };
+
+export const updateUser = createAsyncThunk(
+  'auth/updateUser',
+  async (userData) => {
+    // Store updated user data in localStorage
+    localStorage.setItem('user', JSON.stringify(userData));
+    return userData;
+  }
+);
 
 const authSlice = createSlice({
   name: 'auth',
@@ -30,6 +39,12 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(updateUser.fulfilled, (state, action) => {
+        state.user = action.payload;
+      });
   },
 });
 

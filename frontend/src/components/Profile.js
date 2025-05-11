@@ -8,9 +8,12 @@ import {
   FaTruck, FaDownload, FaTrash, FaPlus, FaChevronDown, FaChevronUp,
   FaShoppingCart, FaStar, FaTimes
 } from 'react-icons/fa';
-import './Profile.css';
+import { updateUser } from '../features/auth/authSlice';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:5000';  // For orders and other data
+const IMAGE_API_URL = 'http://localhost:5001'; // For product images
 
 const Profile = () => {
   const dispatch = useDispatch();
@@ -31,7 +34,7 @@ const Profile = () => {
     orderUpdates: true,
     promotions: false,
     newsletter: true,
-    accountActivity: true
+    accountActivity: true,
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -53,25 +56,24 @@ const Profile = () => {
   const [reviews, setReviews] = useState([]);
   const [newReview, setNewReview] = useState('');
   const [newRating, setNewRating] = useState(0);
+  const [trackingInfo, setTrackingInfo] = useState(null);
+  const [showTracking, setShowTracking] = useState(false);
 
   const toggleMobileMenu = () => {
     setShowMobileMenu(!showMobileMenu);
   };
 
-  // Fix for showToast function to ensure only strings are rendered
   const showToast = (message, type) => {
-    setError({ type, message: message.toString() }); // Ensure message is a string
+    setError({ type, message: message.toString() });
     setTimeout(() => setError(null), 3000);
   };
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!isLoggedIn) {
       navigate('/login');
     }
   }, [isLoggedIn, navigate]);
 
-  // Fetch Initial Data
   useEffect(() => {
     if (isLoggedIn) {
       fetchOrders();
@@ -81,7 +83,6 @@ const Profile = () => {
     }
   }, [isLoggedIn]);
 
-  // Fetch Order History
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
@@ -100,7 +101,6 @@ const Profile = () => {
     }
   };
 
-  // Fetch Wishlist
   const fetchWishlist = async () => {
     setIsLoading(true);
     try {
@@ -119,7 +119,6 @@ const Profile = () => {
     }
   };
 
-  // Fetch Addresses
   const fetchAddresses = async () => {
     setIsLoading(true);
     try {
@@ -132,12 +131,13 @@ const Profile = () => {
       setAddresses(data.addresses || []);
     } catch (error) {
       console.error('Error fetching addresses:', error);
+      return false; // Add proper return statement
     } finally {
       setIsLoading(false);
     }
+    return true; // Add proper return statement
   };
 
-  // Fetch Payment Methods
   const fetchPaymentMethods = async () => {
     setIsLoading(true);
     try {
@@ -155,7 +155,6 @@ const Profile = () => {
     }
   };
 
-  // Fetch Reviews for Selected Wishlist Item
   useEffect(() => {
     if (selectedWishlistItem) {
       const fetchReviews = async () => {
@@ -177,26 +176,60 @@ const Profile = () => {
     }
   }, [selectedWishlistItem]);
 
-  // Handle settings update
+  // Update the useEffect hook to handle user data persistence
+  useEffect(() => {
+    if (user) {
+      setSettings({
+        email: user.email || '',
+        name: user.name || '',
+        phone: user.phone || '',
+        profileImage: user.profileImage || null,
+      });
+    }
+  }, [user]); // Only depend on user changes
+
   const handleSettingsChange = (e) => {
     const { name, value } = e.target;
-    setSettings({ ...settings, [name]: value });
+    setSettings(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  // Handle file upload for profile image
-  const handleProfileImageChange = (e) => {
+ const handleProfileImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSettings({ ...settings, profileImage: reader.result });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+      const formData = new FormData();
+      formData.append('profilePicture', file);
 
-  // Save settings
-  const saveSettings = useCallback(async () => {
+      setIsLoading(true);
+      const token = localStorage.getItem('token');
+      fetch(`${API_BASE_URL}/api/users/me/profile-picture`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error('Failed to upload profile picture');
+          return response.json();
+        })
+        .then((data) => {
+          setSettings((prev) => ({ ...prev, profileImage: data.profileImage }));
+          // Update Redux store with new profile image
+          dispatch(updateUser({ profileImage: data.profileImage }));
+          showToast('Profile picture updated successfully!', 'success');
+        })
+        .catch((error) => {
+          console.error('Error uploading profile picture:', error);
+          setError('Failed to upload profile picture');
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }
+
+  const saveSettings = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -206,21 +239,37 @@ const Profile = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          email: settings.email,
+          name: settings.name,
+          phone: settings.phone || '',
+        }),
       });
-      if (!response.ok) throw new Error('Failed to save settings');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update settings');
+      }
+
       const data = await response.json();
-      dispatch({ type: 'auth/updateUser', payload: { user: { ...user, ...data.user } } });
-      setIsEditing(false);
+      
+      if (data.success) {
+        dispatch(updateUser({
+          ...user,
+          ...data.user
+        }));
+        showToast('Settings updated successfully!', 'success');
+      } else {
+        throw new Error(data.message || 'Failed to update settings');
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
-      setError('Failed to save settings');
+      showToast(error.message || 'Failed to save settings', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [settings, dispatch, user]);
+  };
 
-  // Change password
   const changePassword = async () => {
     if (newPasswordInput !== confirmPasswordInput) {
       setPasswordError("Passwords don't match");
@@ -242,7 +291,7 @@ const Profile = () => {
         },
         body: JSON.stringify({
           currentPassword: currentPasswordInput,
-          newPassword: newPasswordInput
+          newPassword: newPasswordInput,
         }),
       });
 
@@ -255,8 +304,7 @@ const Profile = () => {
       setNewPasswordInput('');
       setConfirmPasswordInput('');
       setPasswordError('');
-      setError({ type: 'success', message: 'Password changed successfully!' });
-      setTimeout(() => setError(null), 3000);
+      showToast('Password changed successfully!', 'success');
     } catch (error) {
       console.error('Error changing password:', error);
       setPasswordError(error.message || 'Failed to change password');
@@ -265,7 +313,6 @@ const Profile = () => {
     }
   };
 
-  // Save notification preferences
   const saveNotificationPreferences = async () => {
     setIsLoading(true);
     try {
@@ -279,8 +326,7 @@ const Profile = () => {
         body: JSON.stringify(notifications),
       });
       if (!response.ok) throw new Error('Failed to save notification preferences');
-      setError({ type: 'success', message: 'Notification preferences updated!' });
-      setTimeout(() => setError(null), 3000);
+      showToast('Notification preferences updated!', 'success');
     } catch (error) {
       console.error('Error saving notification preferences:', error);
       setError('Failed to save notification preferences');
@@ -289,13 +335,11 @@ const Profile = () => {
     }
   };
 
-  // Handle address form
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
     setCurrentAddress({ ...currentAddress, [name]: value });
   };
 
-  // Add/Edit address
   const saveAddress = async () => {
     setIsLoading(true);
     try {
@@ -319,6 +363,7 @@ const Profile = () => {
       await fetchAddresses();
       setIsEditingAddress(false);
       setCurrentAddress(null);
+      showToast('Address saved successfully!', 'success');
     } catch (error) {
       console.error('Error saving address:', error);
       setError('Failed to save address');
@@ -327,7 +372,6 @@ const Profile = () => {
     }
   };
 
-  // Delete address
   const deleteAddress = async (addressId) => {
     if (!window.confirm('Are you sure you want to delete this address?')) return;
 
@@ -342,6 +386,7 @@ const Profile = () => {
       if (!response.ok) throw new Error('Failed to delete address');
 
       await fetchAddresses();
+      showToast('Address deleted successfully!', 'success');
     } catch (error) {
       console.error('Error deleting address:', error);
       setError('Failed to delete address');
@@ -350,7 +395,6 @@ const Profile = () => {
     }
   };
 
-  // Set default address
   const setDefaultAddress = async (addressId) => {
     setIsLoading(true);
     try {
@@ -363,6 +407,7 @@ const Profile = () => {
       if (!response.ok) throw new Error('Failed to set default address');
 
       await fetchAddresses();
+      showToast('Default address set successfully!', 'success');
     } catch (error) {
       console.error('Error setting default address:', error);
       setError('Failed to set default address');
@@ -371,7 +416,6 @@ const Profile = () => {
     }
   };
 
-  // Remove from Wishlist
   const removeFromWishlist = async (item) => {
     try {
       const token = localStorage.getItem('token');
@@ -381,13 +425,13 @@ const Profile = () => {
       });
       if (!response.ok) throw new Error('Failed to remove item from wishlist');
       setWishlist((prev) => prev.filter((i) => i.productId !== item.productId));
+      showToast('Item removed from wishlist!', 'success');
     } catch (error) {
       console.error('Error removing from wishlist:', error);
       setError('Failed to remove item from wishlist');
     }
   };
 
-  // Fix for addToCart function
   const addToCart = async (item) => {
     try {
       const token = localStorage.getItem('token');
@@ -413,7 +457,6 @@ const Profile = () => {
     }
   };
 
-  // Fix for openModal function
   const openModal = async (item) => {
     if (!item) return;
     try {
@@ -426,7 +469,7 @@ const Profile = () => {
       setSelectedWishlistItem({ ...item, ...product });
     } catch (error) {
       console.error('Error fetching product details:', error);
-      setSelectedWishlistItem(item); // Fallback to basic item
+      setSelectedWishlistItem(item);
       showToast('Failed to fetch product details', 'error');
     }
     setQuantity(1);
@@ -434,7 +477,6 @@ const Profile = () => {
     setShowModal(true);
   };
 
-  // Close Modal
   const closeModal = () => {
     setShowModal(false);
     setSelectedWishlistItem(null);
@@ -443,7 +485,6 @@ const Profile = () => {
     setError(null);
   };
 
-  // Submit Review
   const handleSubmitReview = async () => {
     if (!newReview.trim() || newRating === 0) {
       setError('Review and rating are required.');
@@ -465,18 +506,17 @@ const Profile = () => {
       setNewReview('');
       setNewRating(0);
       setError(null);
+      showToast('Review submitted successfully!', 'success');
     } catch (error) {
       console.error('Error submitting review:', error);
       setError(`Failed to submit review: ${error.message}`);
     }
   };
 
-  // Toggle order details
   const toggleOrderDetails = (orderId) => {
     setExpandedOrderId((prevOrderId) => (prevOrderId === orderId ? null : orderId));
   };
 
-  // Filter orders
   const getFilteredOrders = () => {
     let filtered = [...orders];
 
@@ -498,26 +538,260 @@ const Profile = () => {
     return filtered;
   };
 
-  // Download invoice
+  const generateInvoice = async (order) => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add company logo/header
+      doc.setFontSize(20);
+      doc.setTextColor(35, 71, 129);
+      doc.text('NEW ERODE FANCY', 105, 20, { align: 'center' });
+      
+      // Add invoice details
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Invoice No: INV-${order._id.substring(0, 8)}`, 20, 40);
+      doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 20, 45);
+      doc.text(`Status: ${order.status}`, 20, 50);
+
+      // Add customer details
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Customer Details', 20, 65);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Name: ${user?.name || 'N/A'}`, 20, 75);
+      doc.text(`Email: ${user?.email || 'N/A'}`, 20, 80);
+
+      // Add shipping details
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Shipping Details', 20, 95);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      const shippingAddress = order.shippingInfo 
+        ? `${order.shippingInfo.address}, ${order.shippingInfo.city}, ${order.shippingInfo.postalCode}`
+        : 'N/A';
+      doc.text(`Address: ${shippingAddress}`, 20, 105);
+      doc.text(`Contact: ${order.shippingInfo?.contact || 'N/A'}`, 20, 110);
+
+      // Add items table
+      const tableData = order.items.map(item => [
+        item.name,
+        item.quantity.toString(),
+        `₹${item.price.toFixed(2)}`,
+        `₹${(item.price * item.quantity).toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: 125,
+        head: [['Item', 'Quantity', 'Price', 'Total']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [35, 71, 129],
+          textColor: [255, 255, 255],
+          fontSize: 10
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 30, halign: 'center' },
+          2: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 35, halign: 'right' }
+        }
+      });
+
+      // Add total calculations
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text('Subtotal:', 140, finalY);
+      doc.text(`₹${order.totalAmount.toFixed(2)}`, 180, finalY, { align: 'right' });
+
+      if (order.shippingCost) {
+        doc.text('Shipping:', 140, finalY + 7);
+        doc.text(`₹${order.shippingCost.toFixed(2)}`, 180, finalY + 7, { align: 'right' });
+      }
+
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Total Amount:', 140, finalY + 20);
+      doc.text(`₹${order.totalAmount.toFixed(2)}`, 180, finalY + 20, { align: 'right' });
+
+      // Add footer
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Thank you for shopping with NEW ERODE FANCY!', 105, 270, { align: 'center' });
+      doc.text('For any queries, please contact support@erodefancy.com', 105, 275, { align: 'center' });
+
+      // Add item images in a grid
+      let yPos = 125;
+      for (let i = 0; i < order.items.length; i++) {
+        const item = order.items[i];
+        try {
+          if (item.imageId) {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.src = `${IMAGE_API_URL}/api/images/${item.imageId}`;
+            
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+            });
+            
+            const imgWidth = 40;
+            const imgHeight = 40;
+            const x = 20 + (i % 3) * (imgWidth + 10);
+            const y = finalY + 30 + Math.floor(i / 3) * (imgHeight + 10);
+
+            doc.addImage(img, 'JPEG', x, y, imgWidth, imgHeight);
+          }
+        } catch (imgError) {
+          console.error('Error adding image to PDF:', imgError);
+        }
+      }
+
+      // Save PDF
+      doc.save(`Invoice-${order._id}.pdf`);
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      showToast('Failed to generate invoice', 'error');
+    }
+  };
+
+  const trackOrder = async (orderId) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}/track`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch tracking information');
+      }
+
+      const data = await response.json();
+      setTrackingInfo(data);
+      setShowTracking(true);
+    } catch (error) {
+      console.error('Error tracking order:', error);
+      showToast('Failed to fetch tracking information', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const downloadInvoice = (orderId) => {
-    alert(`Downloading invoice for order ${orderId}`);
+    const order = orders.find(o => o._id === orderId);
+    if (!order) {
+      showToast('Order not found', 'error');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      
+      // Add header
+      doc.setFontSize(20);
+      doc.setTextColor(35, 71, 129);
+      doc.text('NEW ERODE FANCY', 105, 20, { align: 'center' });
+      
+      // Add invoice details
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Invoice No: INV-${order._id.substring(0, 8)}`, 20, 40);
+      doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 20, 45);
+      doc.text(`Status: ${order.status}`, 20, 50);
+
+      // Add customer details
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Customer Details', 20, 65);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Name: ${user?.name || 'N/A'}`, 20, 75);
+      doc.text(`Email: ${user?.email || 'N/A'}`, 20, 80);
+
+      // Add shipping details
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Shipping Details', 20, 95);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      const shippingAddress = order.shippingInfo 
+        ? `${order.shippingInfo.address}, ${order.shippingInfo.city}, ${order.shippingInfo.postalCode}`
+        : 'N/A';
+      doc.text(`Address: ${shippingAddress}`, 20, 105);
+      doc.text(`Contact: ${order.shippingInfo?.contact || 'N/A'}`, 20, 110);
+
+      // Add items table
+      const tableData = order.items.map(item => [
+        item.name,
+        item.quantity.toString(),
+        `₹${item.price.toFixed(2)}`,
+        `₹${(item.price * item.quantity).toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: 125,
+        head: [['Item', 'Quantity', 'Price', 'Total']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [35, 71, 129],
+          textColor: [255, 255, 255],
+          fontSize: 10
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 30, halign: 'center' },
+          2: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 35, halign: 'right' }
+        }
+      });
+
+      // Add total calculations
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text('Subtotal:', 140, finalY);
+      doc.text(`₹${order.totalAmount.toFixed(2)}`, 180, finalY, { align: 'right' });
+
+      if (order.shippingCost) {
+        doc.text('Shipping:', 140, finalY + 7);
+        doc.text(`₹${order.shippingCost.toFixed(2)}`, 180, finalY + 7, { align: 'right' });
+      }
+
+      doc.setFontSize(12);
+      doc.setTextColor(35, 71, 129);
+      doc.text('Total Amount:', 140, finalY + 20);
+      doc.text(`₹${order.totalAmount.toFixed(2)}`, 180, finalY + 20, { align: 'right' });
+
+      // Add footer
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Thank you for shopping with NEW ERODE FANCY!', 105, 270, { align: 'center' });
+      doc.text('For any queries, please contact support@erodefancy.com', 105, 275, { align: 'center' });
+
+      // Save the PDF
+      doc.save(`Invoice-${order._id}.pdf`);
+      showToast('Invoice downloaded successfully', 'success');
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      showToast('Failed to generate invoice', 'error');
+    }
   };
 
-  // Track order
-  const trackOrder = (orderId) => {
-    navigate(`/order-tracking/${orderId}`);
-  };
-
-  // Handle Logout
-  const handleLogout = () => {
-    dispatch(logout());
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('isLoggedIn');
-    navigate('/login');
-  };
-
-  // Tab Components Defined Before Return
   const DashboardTab = () => {
     const pendingOrders = orders.filter(order => order.status === 'Pending' || order.status === 'Processing');
     const recentActivity = [
@@ -542,68 +816,67 @@ const Profile = () => {
     ];
 
     return (
-      <div className="profile-tab-content">
-        <h2 className="profile-tab-title">
-          <FaHome className="profile-icon" /> Dashboard
+      <div className="p-4">
+        <h2 className="text-royal-blue text-xl font-bold mb-4 flex items-center">
+          <FaHome className="mr-2" /> Dashboard
         </h2>
-        <div className="profile-dashboard-grid">
-          <div className="profile-card profile-overview-card">
-            <h3>Welcome back, {user?.name}!</h3>
-            <p className="profile-last-login">Last login: {new Date().toLocaleString()}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+            <h3 className="text-gray-800 font-semibold">Welcome back, {user?.name}!</h3>
+            <p className="text-gray-600">Last login: {new Date().toLocaleString()}</p>
           </div>
-
-          <div className="profile-card profile-stats-card">
-            <h3>Account Summary</h3>
-            <div className="profile-stats-grid">
-              <div className="profile-stat-item">
-                <h4>{orders.length}</h4>
-                <p>Orders</p>
+          <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+            <h3 className="text-gray-800 font-semibold">Account Summary</h3>
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div>
+                <h4 className="text-gray-800 font-bold">{orders.length}</h4>
+                <p className="text-gray-600">Orders</p>
               </div>
-              <div className="profile-stat-item">
-                <h4>{wishlist.length}</h4>
-                <p>Wishlist</p>
+              <div>
+                <h4 className="text-gray-800 font-bold">{wishlist.length}</h4>
+                <p className="text-gray-600">Wishlist</p>
               </div>
-              <div className="profile-stat-item">
-                <h4>{pendingOrders.length}</h4>
-                <p>Pending</p>
+              <div>
+                <h4 className="text-gray-800 font-bold">{pendingOrders.length}</h4>
+                <p className="text-gray-600">Pending</p>
               </div>
             </div>
           </div>
-
-          <div className="profile-card profile-activity-card">
-            <h3>Recent Activity</h3>
+          <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+            <h3 className="text-gray-800 font-semibold">Recent Activity</h3>
             {recentActivity.length === 0 ? (
-              <p>No recent activity</p>
+              <p className="text-gray-600">No recent activity</p>
             ) : (
-              <ul className="profile-activity-list">
+              <ul className="mt-4 space-y-4">
                 {recentActivity.map((activity, index) => (
-                  <li key={index} className="profile-activity-item">
-                    <div className={`profile-activity-icon ${activity.type === 'order' ? 'profile-order-icon' : 'profile-wishlist-icon'}`}>
-                      {activity.type === 'order' ? <FaBox /> : <FaHeart />}
+                  <li key={index} className="flex items-start">
+                    <div className={`p-2 rounded-full ${activity.type === 'order' ? 'bg-light-royal' : 'bg-red-100'}`}>
+                      {activity.type === 'order' ? <FaBox className="text-royal-blue" /> : <FaHeart className="text-red-500" />}
                     </div>
-                    <div className="profile-activity-details">
-                      <p>{activity.details}</p>
-                      <span className="profile-activity-date">{activity.date.toLocaleString()}</span>
+                    <div className="ml-4">
+                      <p className="text-gray-800">{activity.details}</p>
+                      <span className="text-gray-500 text-sm">{activity.date.toLocaleString()}</span>
                     </div>
                   </li>
                 ))}
               </ul>
             )}
           </div>
-
-          <div className="profile-card profile-recommendations-card">
-            <h3>Recommended For You</h3>
-            <div className="profile-recommendations-grid">
+          <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+            <h3 className="text-gray-800 font-semibold">Recommended For You</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               {recommendedProducts.map((product) => (
-                <div key={product._id} className="profile-recommendation-item">
+                <div key={product._id} className="text-center">
                   <img
                     src={product.imageUrl || '/images/default.jpg'}
                     alt={product.name}
-                    className="profile-recommendation-image"
+                    className="w-full h-32 object-cover rounded"
                   />
-                  <p className="profile-recommendation-name">{product.name}</p>
-                  <p className="profile-recommendation-price">₹{product.price}</p>
-                  <button className="profile-view-button">View Product</button>
+                  <p className="text-gray-800 mt-2">{product.name}</p>
+                  <p className="text-gray-600">₹{product.price}</p>
+                  <button className="mt-2 bg-royal-blue text-white hover:bg-blue-700 py-1 px-3 rounded">
+                    View Product
+                  </button>
                 </div>
               ))}
             </div>
@@ -614,296 +887,202 @@ const Profile = () => {
   };
 
   const ProfileTab = () => (
-    <div className="profile-tab-content">
-      <h2 className="profile-tab-title">
-        <FaUser className="profile-icon" /> My Profile
+    <div className="p-4">
+      <h2 className="text-royal-blue text-xl font-bold mb-4 flex items-center">
+        <FaUser className="mr-2" /> My Profile
       </h2>
-      <div className="profile-card">
+      <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
         {isLoading ? (
-          <div className="profile-skeleton-loader">
-            <div className="profile-skeleton-circle"></div>
-            <div className="profile-skeleton-line"></div>
-            <div className="profile-skeleton-line"></div>
-            <div className="profile-skeleton-line"></div>
+          <div className="animate-pulse">
+            <div className="w-24 h-24 bg-gray-200 rounded-full mx-auto"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mt-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto mt-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3 mx-auto mt-2"></div>
           </div>
         ) : error && error.type !== 'success' ? (
-          <p className="profile-error">{error.message || error}</p>
+          <p className="text-red-500">{error.message || error}</p>
         ) : (
-          <div className="profile-content-section">
-            <div className="profile-header">
-              <div className="profile-avatar-container">
+          <div>
+            <div className="flex flex-col md:flex-row items-center">
+              <div className="mb-4 md:mb-0 md:mr-6">
                 {settings.profileImage ? (
                   <img
                     src={settings.profileImage}
                     alt={user?.name}
-                    className="profile-avatar"
+                    className="w-24 h-24 border-2 border-royal-blue rounded-full object-cover"
                   />
                 ) : (
-                  <div className="profile-avatar-placeholder">
-                    {user?.name?.charAt(0) || 'U'}
+                  <div className="w-24 h-24 border-2 border-royal-blue rounded-full flex items-center justify-center bg-light-royal text-gray-800 text-2xl font-bold">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 )}
               </div>
-              <div className="profile-user-info">
-                <h3>{user?.name || 'User'}</h3>
-                <p>{user?.email || 'email@example.com'}</p>
-                <p className="profile-member-since">Member since {new Date().toLocaleDateString()}</p>
+              <div className="text-center md:text-left">
+                <h3 className="text-lg font-semibold text-gray-800">{user?.name}</h3>
+                <p className="text-gray-600">{user?.email}</p>
+                <p className="text-gray-600">Member since: {new Date(user?.createdAt || Date.now()).toLocaleDateString()}</p>
+                {!isEditing && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="mt-4 bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center justify-center mx-auto md:mx-0"
+                  >
+                    <FaEdit className="mr-2" /> Edit Profile
+                  </button>
+                )}
               </div>
             </div>
-
-            <div className="profile-details">
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Email:</span>
-                <span className="profile-detail-value">{user?.email || 'Not set'}</span>
+            {isEditing && (
+              <div className="mt-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={settings.name}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={settings.email}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={settings.phone}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Profile Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-royal-blue file:text-white hover:file:bg-blue-700"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex gap-4">
+                  <button
+                    onClick={saveSettings}
+                    disabled={isLoading}
+                    className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Phone:</span>
-                <span className="profile-detail-value">{user?.phone || 'Not set'}</span>
-              </div>
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Default Address:</span>
-                <span className="profile-detail-value">
-                  {addresses.find(addr => addr.isDefault)?.fullAddress || 'Not set'}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 
-  const OrderHistoryTab = () => {
-    const filteredOrders = getFilteredOrders();
-
-    const formatShippingAddress = (shippingInfo) => {
-      if (!shippingInfo || !Object.keys(shippingInfo).length) {
-        return 'No shipping address provided';
-      }
-      const { name, address, city, postalCode, contact } = shippingInfo;
-      return `${name || 'N/A'}, ${address || 'N/A'}, ${city || 'N/A'} ${postalCode || 'N/A'}, Contact: ${contact || 'N/A'}`;
-    };
-
-    const calculateEstimatedDelivery = (createdAt, deliveryType) => {
-      const orderDate = new Date(createdAt);
-      const daysToAdd = deliveryType === 'express' ? 2 : 7;
-      orderDate.setDate(orderDate.getDate() + daysToAdd);
-      return orderDate.toLocaleDateString();
-    };
-
-    return (
-      <div className="profile-tab-content">
-        <h2 className="profile-tab-title">
-          <FaBox className="profile-icon" /> Order History
-        </h2>
-
-        <div className="profile-card">
-          <div className="profile-order-filters">
-            <div className="profile-search-container">
-              <FaSearch className="profile-search-icon" />
-              <input
-                type="text"
-                placeholder="Search orders..."
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-                className="profile-search-input"
-              />
-            </div>
-
-            <div className="profile-filter-container">
-              <FaFilter className="profile-filter-icon" />
-              <select
-                value={orderFilter}
-                onChange={(e) => setOrderFilter(e.target.value)}
-                className="profile-filter-select"
-              >
-                <option value="all">All Orders</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="profile-skeleton-loader">
-              <div className="profile-skeleton-line"></div>
-              <div className="profile-skeleton-line"></div>
-              <div className="profile-skeleton-line"></div>
-            </div>
-          ) : error ? (
-            <p className="profile-error">{error}</p>
-          ) : filteredOrders.length === 0 ? (
-            <div className="profile-empty-container">
-              <FaBox className="profile-empty-icon" />
-              <p className="profile-empty-message">No orders found</p>
-              <button
-                className="profile-shop-now-button"
-                onClick={() => navigate('/shop')}
-              >
-                Shop Now
-              </button>
-            </div>
-          ) : (
-            <div className="profile-order-list">
-              {filteredOrders.map((order) => (
-                <div key={order._id} className="profile-order-item">
-                  <div className="profile-order-header">
-                    <div className="profile-order-info">
-                      <h3>Order #{order._id}</h3>
-                      <p>Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
-                    </div>
-
-                    <div className="profile-order-status-container">
-                      <span
-                        className={`profile-status profile-status-${order.status.toLowerCase()}`}
-                      >
-                        {order.status}
-                      </span>
-                      <span className="profile-order-price">₹{order.total || order.totalAmount || 0}</span>
-                    </div>
-                  </div>
-
-                  <div className="profile-order-actions">
-                    <button
-                      className="profile-order-action-button"
-                      onClick={() => toggleOrderDetails(order._id)}
-                    >
-                      {expandedOrderId === order._id ? (
-                        <>Hide Details <FaChevronUp /></>
-                      ) : (
-                        <>View Details <FaChevronDown /></>
-                      )}
-                    </button>
-
-                    <button
-                      className="profile-order-action-button"
-                      onClick={() => trackOrder(order._id)}
-                    >
-                      <FaTruck /> Track Order
-                    </button>
-
-                    <button
-                      className="profile-order-action-button"
-                      onClick={() => downloadInvoice(order._id)}
-                    >
-                      <FaDownload /> Invoice
-                    </button>
-                  </div>
-
-                  {expandedOrderId === order._id && (
-                    <div className="profile-order-details">
-                      <h4>Order Items</h4>
-                      <div className="profile-order-items">
-                        {(order.items || []).map((item, index) => (
-                          <div key={index} className="profile-order-item-detail">
-                            <img
-                              src={item.imageUrl || '/images/default.jpg'}
-                              alt={item.name}
-                              className="profile-order-item-image"
-                            />
-                            <div className="profile-order-item-info">
-                              <h5>{item.name}</h5>
-                              <p>Product ID: {item.productId?._id || item.productId}</p>
-                              <p>Quantity: {item.quantity}</p>
-                              <p>Price: ₹{item.price}</p>
-                              {item.color && <p>Color: {item.color}</p>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="profile-order-summary">
-                        <div className="profile-order-address">
-                          <h4>Shipping Address</h4>
-                          <p>{formatShippingAddress(order.shippingInfo)}</p>
-                        </div>
-
-                        <div className="profile-order-delivery">
-                          <h4>Delivery Details</h4>
-                          <p>Delivery Type: {order.deliveryType || 'N/A'}</p>
-                          <p>Estimated Delivery: {calculateEstimatedDelivery(order.createdAt, order.deliveryType)}</p>
-                          <p>Total: ₹{order.total || order.totalAmount || 0}</p>
-                          {order.orderNotes && <p>Order Notes: {order.orderNotes}</p>}
-                        </div>
-                      </div>
-
-                      {order.status === 'Delivered' && (
-                        <div className="profile-order-review">
-                          <h4>Leave a Review</h4>
-                          <button className="profile-review-button">Write a Review</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const WishlistTab = () => (
-    <div className="profile-tab-content">
-      <h2 className="profile-tab-title">
-        <FaHeart className="profile-icon" /> Wishlist
+  const OrdersTab = () => (
+    <div className="p-4">
+      <h2 className="text-royal-blue text-xl font-bold mb-4 flex items-center">
+        <FaBox className="mr-2" /> Order History
       </h2>
-      <div className="profile-card">
+      <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
         {isLoading ? (
-          <div className="profile-skeleton-loader">
-            <div className="profile-skeleton-grid">
-              <div className="profile-skeleton-card"></div>
-              <div className="profile-skeleton-card"></div>
-              <div className="profile-skeleton-card"></div>
-            </div>
+          <div className="animate-pulse space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+            ))}
           </div>
-        ) : error ? (
-          <p className="profile-error">{error.message || error.toString()}</p>
-        ) : wishlist.length === 0 ? (
-          <div className="profile-empty-container">
-            <FaHeart className="profile-empty-icon" />
-            <p className="profile-empty-message">Your wishlist is empty</p>
-            <button
-              className="profile-shop-now-button"
-              onClick={() => navigate('/shop')}
-            >
-              Discover Products
-            </button>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-8">
+            <FaBox className="text-4xl text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600">No orders found</p>
           </div>
         ) : (
-          <div className="profile-wishlist-grid">
-            {wishlist.map((item) => (
-              <div key={item._id} className="profile-wishlist-item">
-                <div className="profile-wishlist-image-container">
-                  <img
-                    src={
-                      item.imageUrl
-                        ? item.imageUrl.startsWith('http')
-                          ? item.imageUrl
-                          : `http://localhost:5000${item.imageUrl}`
-                        : '/images/default.jpg'
-                    }
-                    alt={item.name}
-                    className="profile-wishlist-image"
-                    onError={(e) => (e.target.src = '/images/default.jpg')}
-                  />
-                </div>
-                <div className="profile-wishlist-content">
-                  <h3 className="profile-wishlist-name">{item.name}</h3>
-                  <p className="profile-wishlist-price">₹{item.price}</p>
-                  <div className="profile-wishlist-actions">
+          <div className="space-y-6">
+            {orders.map((order) => (
+              <div key={order._id} className="border border-light-royal rounded-lg overflow-hidden">
+                <div className="bg-blue-50 p-4 flex justify-between items-center">
+                  <div>
+                    <p className="font-medium text-blue-900">Order #{order._id.substring(0, 8)}</p>
+                    <p className="text-sm text-blue-600">{new Date(order.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => removeFromWishlist(item)}
-                      className="profile-remove-wishlist-button"
+                      onClick={() => trackOrder(order._id)}
+                      className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-colors"
                     >
-                      Remove
+                      Track Order
+                    </button>
+                    <button
+                      onClick={() => downloadInvoice(order._id)}
+                      className="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition-colors"
+                    >
+                      Download Invoice
                     </button>
                   </div>
                 </div>
+                <div className={`p-4 ${expandedOrderId === order._id ? 'block' : 'hidden'}`}>
+                  <div className="grid gap-4">
+                    {order.items.map((item) => (
+                      <div key={item._id} className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                        <div className="flex items-center justify-center bg-blue-50 rounded-xl overflow-hidden w-20 h-20">
+                          {item.imageId ? (
+                            <img
+                              src={`${IMAGE_API_URL}/api/images/${item.imageId}`}
+                              alt={item.name}
+                              className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                              onError={(e) => {
+                                console.error('Image load error:', e);
+                                e.target.onerror = null;
+                                e.target.src = '/images/default.jpg';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-blue-500">
+                              No Image
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{item.name}</h4>
+                          <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                          <p className="text-sm font-medium text-blue-600">₹{item.price}</p>
+                          {item.color && (
+                            <p className="text-sm text-gray-500">Color: {item.color}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-right text-lg font-medium text-blue-600">
+                      Total: ₹{order.totalAmount}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleOrderDetails(order._id)}
+                  className="w-full p-2 text-center text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  {expandedOrderId === order._id ? 'Hide Details' : 'Show Details'}
+                </button>
               </div>
             ))}
           </div>
@@ -912,560 +1091,150 @@ const Profile = () => {
     </div>
   );
 
-  const SettingsTab = () => (
-    <div className="profile-tab-content">
-      <h2 className="profile-tab-title">
-        <FaCog className="profile-icon" /> Settings
+  const WishlistTab = () => (
+    <div className="p-4">
+      <h2 className="text-royal-blue text-xl font-bold mb-4 flex items-center">
+        <FaHeart className="mr-2" /> My Wishlist
       </h2>
-
-      {/* Personal Information */}
-      <div className="profile-card">
-        <h3 className="profile-section-title">Personal Information</h3>
-        {isLoading && !isEditing ? (
-          <div className="profile-skeleton-loader">
-            <div className="profile-skeleton-line"></div>
-            <div className="profile-skeleton-line"></div>
-            <div className="profile-skeleton-line"></div>
+      <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+        {isLoading ? (
+          <div className="animate-pulse grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+            ))}
           </div>
-        ) : error && error.type !== 'success' ? (
-          <p className="profile-error">{error.message || error}</p>
-        ) : isEditing ? (
-          <div className="profile-settings-form">
-            <div className="profile-form-group">
-              <label>Profile Picture</label>
-              <div className="profile-image-upload">
-                {settings.profileImage ? (
-                  <img src={settings.profileImage} alt="Profile" className="profile-preview-image" />
-                ) : (
-                  <div className="profile-image-placeholder">
-                    <FaUser />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  id="profile-image"
-                  accept="image/*"
-                  onChange={handleProfileImageChange}
-                  className="profile-image-input"
-                />
-                <label htmlFor="profile-image" className="profile-image-button">
-                  Change Picture
-                </label>
-              </div>
-            </div>
-            <div className="profile-form-group">
-              <label>Name</label>
-              <input
-                type="text"
-                name="name"
-                value={settings.name}
-                onChange={handleSettingsChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                name="email"
-                value={settings.email}
-                onChange={handleSettingsChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-group">
-              <label>Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={settings.phone}
-                onChange={handleSettingsChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-actions">
-              <button onClick={saveSettings} className="profile-save-button">
-                Save Changes
-              </button>
-              <button onClick={() => setIsEditing(false)} className="profile-cancel-button">
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="profile-content-section">
-            <div className="profile-details">
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Name:</span>
-                <span className="profile-detail-value">{settings.name}</span>
-              </div>
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Email:</span>
-                <span className="profile-detail-value">{settings.email}</span>
-              </div>
-              <div className="profile-detail-item">
-                <span className="profile-detail-label">Phone:</span>
-                <span className="profile-detail-value">{settings.phone || 'Not set'}</span>
-              </div>
-            </div>
-            <button onClick={() => setIsEditing(true)} className="profile-edit-button">
-              <FaEdit className="profile-icon" /> Edit Profile
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Password Management */}
-      <div className="profile-card">
-        <h3 className="profile-section-title">Password Management</h3>
-        <form className="profile-password-form">
-          <div className="profile-form-group">
-            <label>Current Password</label>
-            <input
-              type="password"
-              value={currentPasswordInput}
-              onChange={(e) => setCurrentPasswordInput(e.target.value)}
-              className="profile-form-input"
-            />
-          </div>
-          <div className="profile-form-group">
-            <label>New Password</label>
-            <input
-              type="password"
-              value={newPasswordInput}
-              onChange={(e) => setNewPasswordInput(e.target.value)}
-              className="profile-form-input"
-            />
-          </div>
-          <div className="profile-form-group">
-            <label>Confirm New Password</label>
-            <input
-              type="password"
-              value={confirmPasswordInput}
-              onChange={(e) => setConfirmPasswordInput(e.target.value)}
-              className="profile-form-input"
-            />
-          </div>
-          {passwordError && <p className="profile-error">{passwordError}</p>}
-          <button
-            type="button"
-            onClick={changePassword}
-            className="profile-password-button"
-            disabled={!currentPasswordInput || !newPasswordInput || !confirmPasswordInput}
-          >
-            Change Password
-          </button>
-        </form>
-      </div>
-
-      {/* Address Book */}
-      <div className="profile-card">
-        <h3 className="profile-section-title">Address Book</h3>
-        {isEditingAddress ? (
-          <div className="profile-address-form">
-            <div className="profile-form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                name="fullName"
-                value={currentAddress?.fullName || ''}
-                onChange={handleAddressChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-group">
-              <label>Phone Number</label>
-              <input
-                type="tel"
-                name="phone"
-                value={currentAddress?.phone || ''}
-                onChange={handleAddressChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-group">
-              <label>Address Line 1</label>
-              <input
-                type="text"
-                name="addressLine1"
-                value={currentAddress?.addressLine1 || ''}
-                onChange={handleAddressChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-group">
-              <label>Address Line 2</label>
-              <input
-                type="text"
-                name="addressLine2"
-                value={currentAddress?.addressLine2 || ''}
-                onChange={handleAddressChange}
-                className="profile-form-input"
-              />
-            </div>
-            <div className="profile-form-row">
-              <div className="profile-form-groupiltro">
-                <label>City</label>
-                <input
-                  type="text"
-                  name="city"
-                  value={currentAddress?.city || ''}
-                  onChange={handleAddressChange}
-                  className="profile-form-input"
-                />
-              </div>
-              <div className="profile-form-group">
-                <label>State</label>
-                <input
-                  type="text"
-                  name="state"
-                  value={currentAddress?.state || ''}
-                  onChange={handleAddressChange}
-                  className="profile-form-input"
-                />
-              </div>
-            </div>
-            <div className="profile-form-row">
-              <div className="profile-form-group">
-                <label>Postal Code</label>
-                <input
-                  type="text"
-                  name="postalCode"
-                  value={currentAddress?.postalCode || ''}
-                  onChange={handleAddressChange}
-                  className="profile-form-input"
-                />
-              </div>
-              <div className="profile-form-group">
-                <label>Country</label>
-                <input
-                  type="text"
-                  name="country"
-                  value={currentAddress?.country || ''}
-                  onChange={handleAddressChange}
-                  className="profile-form-input"
-                />
-              </div>
-            </div>
-            <div className="profile-form-group">
-              <label className="profile-checkbox-label">
-                <input
-                  type="checkbox"
-                  name="isDefault"
-                  checked={currentAddress?.isDefault || false}
-                  onChange={(e) => setCurrentAddress({ ...currentAddress, isDefault: e.target.checked })}
-                  className="profile-checkbox"
-                />
-                Set as default address
-              </label>
-            </div>
-            <div className="profile-form-actions">
-              <button onClick={saveAddress} className="profile-save-button">
-                Save Address
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditingAddress(false);
-                  setCurrentAddress(null);
-                }}
-                className="profile-cancel-button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="profile-address-list">
-              {isLoading ? (
-                <div className="profile-skeleton-loader">
-                  <div className="profile-skeleton-card"></div>
-                  <div className="profile-skeleton-card"></div>
-                </div>
-              ) : addresses.length === 0 ? (
-                <p className="profile-empty-message">No addresses saved</p>
-              ) : (
-                addresses.map((address) => (
-                  <div key={address._id} className={`profile-address-card ${address.isDefault ? 'profile-default-address' : ''}`}>
-                    {address.isDefault && <span className="profile-default-badge">Default</span>}
-                    <h4>{address.fullName}</h4>
-                    <p>{address.addressLine1}</p>
-                    {address.addressLine2 && <p>{address.addressLine2}</p>}
-                    <p>{address.city}, {address.state} {address.postalCode}</p>
-                    <p>{address.country}</p>
-                    <p>{address.phone}</p>
-                    <div className="profile-address-actions">
-                      <button
-                        onClick={() => {
-                          setCurrentAddress(address);
-                          setIsEditingAddress(true);
-                        }}
-                        className="profile-address-edit-button"
-                      >
-                        Edit
-                      </button>
-                      {!address.isDefault && (
-                        <button
-                          onClick={() => setDefaultAddress(address._id)}
-                          className="profile-address-default-button"
-                        >
-                          Set as Default
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteAddress(address._id)}
-                        className="profile-address-delete-button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+        ) : wishlist.length === 0 ? (
+          <div className="text-center py-8">
+            <FaHeart className="text-4xl text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-600">Your wishlist is empty</p>
             <button
-              onClick={() => {
-                setCurrentAddress({});
-                setIsEditingAddress(true);
-              }}
-              className="profile-add-address-button"
+              onClick={() => navigate('/shop')}
+              className="mt-4 bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700"
             >
-              <FaPlus /> Add New Address
+              Shop Now
             </button>
-          </>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {wishlist.map((item) => (
+              <div key={item.productId} className="border border-light-royal rounded-lg shadow-sm">
+                <div className="relative">
+                  <img
+                    src={item.imageUrl || '/images/default.jpg'}
+                    alt={item.name}
+                    className="w-full h-48 object-cover rounded-t-lg"
+                  />
+                  <button
+                    onClick={() => removeFromWishlist(item)}
+                    className="absolute top-2 right-2 bg-white text-red-500 p-2 rounded-full hover:bg-red-500 hover:text-white"
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <h3 className="text-gray-800 font-semibold">{item.name}</h3>
+                  <p className="text-royal-blue font-semibold">₹{item.price}</p>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => addToCart(item)}
+                      className="flex-1 bg-royal-blue text-white py-2 rounded-md hover:bg-blue-700 flex items-center justify-center"
+                    >
+                      <FaShoppingCart className="mr-2" /> Add to Cart
+                    </button>
+                    <button
+                      onClick={() => openModal(item)}
+                      className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      {/* Notification Preferences */}
-      <div className="profile-card">
-        <h3 className="profile-section-title">Notification Preferences</h3>
-        <div className="profile-notification-settings">
-          <div className="profile-notification-option">
-            <label className="profile-checkbox-label">
-              <input
-                type="checkbox"
-                checked={notifications.orderUpdates}
-                onChange={(e) => setNotifications({ ...notifications, orderUpdates: e.target.checked })}
-                className="profile-checkbox"
-              />
-              Order Updates
-            </label>
-            <p className="profile-notification-description">
-              Receive notifications about your order status
-            </p>
-          </div>
-          <div className="profile-notification-option">
-            <label className="profile-checkbox-label">
-              <input
-                type="checkbox"
-                checked={notifications.promotions}
-                onChange={(e) => setNotifications({ ...notifications, promotions: e.target.checked })}
-                className="profile-checkbox"
-              />
-              Promotions & Deals
-            </label>
-            <p className="profile-notification-description">
-              Be the first to know about sales and special offers
-            </p>
-          </div>
-          <div className="profile-notification-option">
-            <label className="profile-checkbox-label">
-              <input
-                type="checkbox"
-                checked={notifications.newsletter}
-                onChange={(e) => setNotifications({ ...notifications, newsletter: e.target.checked })}
-                className="profile-checkbox"
-              />
-              Newsletter
-            </label>
-            <p className="profile-notification-description">
-              Receive monthly newsletter with tips and product updates
-            </p>
-          </div>
-          <div className="profile-notification-option">
-            <label className="profile-checkbox-label">
-              <input
-                type="checkbox"
-                checked={notifications.accountActivity}
-                onChange={(e) => setNotifications({ ...notifications, accountActivity: e.target.checked })}
-                className="profile-checkbox"
-              />
-              Account Activity
-            </label>
-            <p className="profile-notification-description">
-              Get notified about login attempts and account changes
-            </p>
-          </div>
-          <button onClick={saveNotificationPreferences} className="profile-save-button">
-            Save Preferences
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="profile-page-container">
-      <button className="profile-mobile-menu-toggle" onClick={toggleMobileMenu}>
-        Menu {showMobileMenu ? <FaChevronUp /> : <FaChevronDown />}
-      </button>
-
-      <div className="profile-content-wrapper">
-        <div className={`profile-sidebar ${showMobileMenu ? 'profile-show-mobile' : ''}`}>
-          <h1 className="profile-sidebar-title">My Account</h1>
-          <ul className="profile-sidebar-list">
-            <li>
-              <button
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  setShowMobileMenu(false);
-                }}
-                className={`profile-sidebar-button ${activeTab === 'dashboard' ? 'profile-active' : ''}`}
-              >
-                <FaHome className="profile-icon" /> Dashboard
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => {
-                  setActiveTab('profile');
-                  setShowMobileMenu(false);
-                }}
-                className={`profile-sidebar-button ${activeTab === 'profile' ? 'profile-active' : ''}`}
-              >
-                <FaUser className="profile-icon" /> Profile
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => {
-                  setActiveTab('orders');
-                  setShowMobileMenu(false);
-                }}
-                className={`profile-sidebar-button ${activeTab === 'orders' ? 'profile-active' : ''}`}
-              >
-                <FaBox className="profile-icon" /> Orders
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => {
-                  setActiveTab('wishlist');
-                  setShowMobileMenu(false);
-                }}
-                className={`profile-sidebar-button ${activeTab === 'wishlist' ? 'profile-active' : ''}`}
-              >
-                <FaHeart className="profile-icon" /> Wishlist
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => {
-                  setActiveTab('settings');
-                  setShowMobileMenu(false);
-                }}
-                className={`profile-sidebar-button ${activeTab === 'settings' ? 'profile-active' : ''}`}
-              >
-                <FaCog className="profile-icon" /> Settings
-              </button>
-            </li>
-            <li>
-              <button onClick={handleLogout} className="profile-sidebar-button profile-logout">
-                <FaSignOutAlt className="profile-icon" /> Logout
-              </button>
-            </li>
-          </ul>
-        </div>
-
-        <div className="profile-main-content">
-          {activeTab === 'dashboard' && <DashboardTab />}
-          {activeTab === 'profile' && <ProfileTab />}
-          {activeTab === 'orders' && <OrderHistoryTab />}
-          {activeTab === 'wishlist' && <WishlistTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-        </div>
-      </div>
-
       {showModal && selectedWishlistItem && (
-        <div className="profile-modal">
-          <div className="profile-modal-content">
-            <div className="profile-modal-header">
-              <h2>{selectedWishlistItem.name}</h2>
-              <button onClick={closeModal} className="profile-close-modal-btn">
-                <FaTimes />
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">{selectedWishlistItem.name}</h3>
+              <button onClick={closeModal} className="text-gray-600 hover:text-gray-800">
+                <FaTimes size={24} />
               </button>
             </div>
-            <div className="profile-modal-body">
-              <div className="profile-product-image-container">
-                {selectedWishlistItem.imageUrl ? (
-                  <img
-                    src={selectedWishlistItem.imageUrl}
-                    alt={selectedWishlistItem.name}
-                    className="profile-product-img-modal"
-                    onError={(e) => (e.target.src = '/images/default.jpg')}
-                  />
-                ) : (
-                  <div className="profile-no-image-placeholder">No Image Available</div>
-                )}
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-1">
+                <img
+                  src={selectedWishlistItem.imageUrl || '/images/default.jpg'}
+                  alt={selectedWishlistItem.name}
+                  className="w-full max-h-80 object-cover rounded"
+                />
               </div>
-              <div className="profile-product-info">
-                <p className="profile-product-description">
-                  {selectedWishlistItem.description || 'No description available.'}
-                </p>
-                <p className="profile-product-price">Price: ₹{selectedWishlistItem.price}</p>
-                <div className="profile-quantity-selection">
-                  <label className="profile-quantity-label">Quantity:</label>
+              <div className="flex-1">
+                <p className="text-gray-600">{selectedWishlistItem.description || 'No description available'}</p>
+                <p className="text-royal-blue font-semibold mt-2">₹{selectedWishlistItem.price}</p>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700">Quantity</label>
                   <select
                     value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value))}
-                    className="profile-quantity-dropdown"
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    className="mt-1 block w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue"
                   >
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                    {[1, 2, 3, 4, 5].map((num) => (
                       <option key={num} value={num}>{num}</option>
                     ))}
                   </select>
                 </div>
-                <button onClick={() => addToCart(selectedWishlistItem)} className="profile-add-to-cart-btn">
-                  <FaShoppingCart /> Add to Cart
+                <button
+                  onClick={() => addToCart(selectedWishlistItem)}
+                  className="mt-4 w-full bg-royal-blue text-white py-2 rounded-md hover:bg-blue-700 flex items-center justify-center"
+                >
+                  <FaShoppingCart className="mr-2" /> Add to Cart
                 </button>
               </div>
-              <div className="profile-reviews-section">
-                <h3>Reviews</h3>
-                {error && <p className="profile-error-message">{error}</p>}
-                <ul className="profile-review-list">
-                  {reviews.length > 0 ? (
-                    reviews.map((review) => (
-                      <li key={review._id} className="profile-review-item">
-                        <p>{review.reviewText}</p>
-                        <p>
-                          <strong>Rating:</strong> {review.rating || 0} <FaStar className="profile-star-icon" />
-                        </p>
-                        <p><small>By: {review.userId || 'Anonymous'}</small></p>
-                      </li>
-                    ))
-                  ) : (
-                    <p>No reviews yet.</p>
-                  )}
+            </div>
+            <div className="mt-6">
+              <h4 className="text-gray-800 font-semibold">Reviews</h4>
+              {reviews.length === 0 ? (
+                <p className="text-gray-600">No reviews yet</p>
+              ) : (
+                <ul className="space-y-4">
+                  {reviews.map((review, index) => (
+                    <li key={index} className="border-b border-light-royal pb-2">
+                      <div className="flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <FaStar key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-300'} />
+                        ))}
+                      </div>
+                      <p className="text-gray-600 mt-1">{review.reviewText}</p>
+                    </li>
+                  ))}
                 </ul>
-                <div className="profile-rating-section">
-                  <label>Rate this product:</label>
-                  <div className="profile-star-rating">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <FaStar
-                        key={star}
-                        className={`profile-star-icon ${star <= newRating ? 'profile-active' : ''}`}
-                        onClick={() => setNewRating(star)}
-                      />
-                    ))}
-                  </div>
+              )}
+              <div className="mt-4">
+                <h4 className="text-gray-800 font-semibold">Write a Review</h4>
+                <div className="flex items-center mb-2">
+                  {[...Array(5)].map((_, i) => (
+                    <FaStar
+                      key={i}
+                      className={`cursor-pointer ${i < newRating ? 'text-yellow-400' : 'text-gray-300'}`}
+                      onClick={() => setNewRating(i + 1)}
+                    />
+                  ))}
                 </div>
                 <textarea
-                  placeholder="Write your review here..."
                   value={newReview}
                   onChange={(e) => setNewReview(e.target.value)}
-                  className="profile-review-input"
+                  placeholder="Write your review..."
+                  className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue"
+                  rows={4}
                 />
-                <button onClick={handleSubmitReview} className="profile-submit-review-btn">
+                {error && <p className="text-red-500 mt-2">{error}</p>}
+                <button
+                  onClick={handleSubmitReview}
+                  className="mt-2 bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                >
                   Submit Review
                 </button>
               </div>
@@ -1475,6 +1244,337 @@ const Profile = () => {
       )}
     </div>
   );
+
+  const SettingsTab = () => (
+    <div className="p-4">
+      <h2 className="text-royal-blue text-xl font-bold mb-4 flex items-center">
+        <FaCog className="mr-2" /> Settings
+      </h2>
+      <div className="bg-white border border-light-royal rounded-lg p-6 shadow-sm">
+        {isLoading ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h3>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={settings.name}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={settings.email}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={settings.phone}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Profile Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-royal-blue file:text-white hover:file:bg-blue-700"
+                    />
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={saveSettings}
+                      disabled={isLoading}
+                      className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-600">Name: {settings.name}</p>
+                  <p className="text-gray-600">Email: {settings.email}</p>
+                  <p className="text-gray-600">Phone: {settings.phone}</p>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="mt-4 bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+                  >
+                    <FaEdit className="mr-2" /> Edit
+                  </button>
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Current Password</label>
+                  <input
+                    type="password"
+                    value={currentPasswordInput}
+                    onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">New Password</label>
+                  <input
+                    type="password"
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={confirmPasswordInput}
+                    onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                  />
+                </div>
+                {passwordError && <p className="text-red-500">{passwordError}</p>}
+                <button
+                  onClick={changePassword}
+                  disabled={isLoading}
+                  className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Change Password
+                </button>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Address Book</h3>
+              {isEditingAddress ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Street</label>
+                      <input
+                        type="text"
+                        name="street"
+                        value={currentAddress?.street || ''}
+                        onChange={handleAddressChange}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">City</label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={currentAddress?.city || ''}
+                        onChange={handleAddressChange}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">State</label>
+                      <input
+                        type="text"
+                        name="state"
+                        value={currentAddress?.state || ''}
+                        onChange={handleAddressChange}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Zip Code</label>
+                      <input
+                        type="text"
+                        name="zip"
+                        value={currentAddress?.zip || ''}
+                        onChange={handleAddressChange}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring focus:ring-royal-blue focus:border-royal-blue sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={saveAddress}
+                      disabled={isLoading}
+                      className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Save Address
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingAddress(false);
+                        setCurrentAddress(null);
+                      }}
+                      className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {addresses.map((address) => (
+                      <div
+                        key={address._id}
+                        className={`border border-light-royal rounded-lg p-4 relative ${address.isDefault ? 'border-royal-blue shadow-sm' : ''}`}
+                      >
+                        {address.isDefault && (
+                          <span className="absolute top-2 right-2 bg-royal-blue text-white text-xs px-2 py-1 rounded-full">
+                            Default
+                          </span>
+                        )}
+                        <h4 className="text-gray-800 font-semibold">{address.name || 'Address'}</h4>
+                        <p className="text-gray-600">{address.street}</p>
+                        <p className="text-gray-600">{address.city}, {address.state} {address.zip}</p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => {
+                              setCurrentAddress(address);
+                              setIsEditingAddress(true);
+                            }}
+                            className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 text-sm"
+                          >
+                            Edit
+                          </button>
+                          {!address.isDefault && (
+                            <button
+                              onClick={() => setDefaultAddress(address._id)}
+                              className="flex-1 bg-light-royal text-royal-blue px-3 py-2 rounded-md hover:bg-blue-100 text-sm"
+                            >
+                              Set Default
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteAddress(address._id)}
+                            className="flex-1 bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCurrentAddress({});
+                      setIsEditingAddress(true);
+                    }}
+                    className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+                  >
+                    <FaPlus className="mr-2" /> Add New Address
+                  </button>
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Notification Preferences</h3>
+              <div className="space-y-4">
+                {Object.keys(notifications).map((key) => (
+                  <div key={key} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={notifications[key]}
+                      onChange={(e) => setNotifications({ ...notifications, [key]: e.target.checked })}
+                      className="h-4 w-4 text-royal-blue focus:ring-royal-blue border-gray-300 rounded"
+                    />
+                    <label className="ml-2 text-sm font-medium text-gray-700">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                    </label>
+                  </div>
+                ))}
+                <button
+                  onClick={saveNotificationPreferences}
+                  disabled={isLoading}
+                  className="bg-royal-blue text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Save Preferences
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
+      {error && (
+        <div className={`p-4 mb-4 rounded-md ${error.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          {error.message}
+        </div>
+      )}
+      <button
+        className="md:hidden bg-royal-blue text-white px-4 py-2 rounded-md flex items-center justify-center w-full mb-4"
+        onClick={toggleMobileMenu}
+      >
+        Menu {showMobileMenu ? <FaChevronUp className="ml-2" /> : <FaChevronDown className="ml-2" />}
+      </button>
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className={`md:w-64 w-full ${showMobileMenu ? 'block' : 'hidden'} md:block bg-light-royal p-4 rounded-lg shadow-sm`}>
+          <h1 className="text-xl font-bold text-royal-blue mb-4">My Account</h1>
+          <ul className="space-y-2">
+            {[
+              { tab: 'dashboard', icon: <FaHome />, label: 'Dashboard' },
+              { tab: 'profile', icon: <FaUser />, label: 'My Profile' },
+              { tab: 'orders', icon: <FaBox />, label: 'Order History' },
+              { tab: 'wishlist', icon: <FaHeart />, label: 'My Wishlist' },
+              { tab: 'settings', icon: <FaCog />, label: 'Settings' },
+            ].map(({ tab, icon, label }) => (
+              <li key={tab}>
+                <button
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 rounded-md flex items-center ${
+                    activeTab === tab ? 'bg-royal-blue text-white' : 'text-royal-blue hover:bg-blue-100'
+                  }`}
+                >
+                  {icon}
+                  <span className="ml-2">{label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex-1 bg-white border border-light-royal rounded-lg shadow-sm">
+          {activeTab === 'dashboard' && <DashboardTab />}
+          {activeTab === 'profile' && <ProfileTab />}
+          {activeTab === 'orders' && <OrdersTab />}  
+          {activeTab === 'wishlist' && <WishlistTab />}   
+          {activeTab === 'settings' && <SettingsTab />}    
+        </div>        
+      </div>       
+    </div>        
+  );
 };
 
-export default Profile;
+export default Profile

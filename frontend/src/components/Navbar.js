@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "../features/auth/authSlice";
 import { FaUser, FaSignOutAlt, FaUserCircle, FaShoppingCart } from "react-icons/fa";
 
 const API_BASE_URL = "http://localhost:5000";
 const CART_API_BASE_URL = "http://localhost:5000";
 
-const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
+const Navbar = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { user, isLoggedIn } = useSelector((state) => state.auth);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [cartItems, setCartItems] = useState(0);
-  const [user, setUser] = useState(propUser);
   const [scrolled, setScrolled] = useState(false);
   const userDropdownRef = useRef(null);
-  const navigate = useNavigate();
 
   // Track scrolling to adjust transparency
   useEffect(() => {
@@ -25,20 +28,19 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const handleLogoutClick = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("isLoggedIn");
-    onLogout();
+    dispatch(logout());
     navigate("/login");
-    setUser(null);
     setIsUserDropdownOpen(false);
     setIsMenuOpen(false);
-  }, [navigate, onLogout]);
+  }, [dispatch, navigate]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -50,51 +52,6 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    const fetchUserDetails = async () => {
-      if (!isLoggedIn) {
-        setUser(null);
-        return;
-      }
-
-      const token = localStorage.getItem("token");
-      if (!token) {
-        handleLogoutClick();
-        return;
-      }
-
-      try {
-        const userResponse = await fetch(`${API_BASE_URL}/api/users/me`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!userResponse.ok) {
-          throw new Error(`Failed to fetch user: ${userResponse.status}`);
-        }
-
-        const userData = await userResponse.json();
-        setUser({
-          ...userData,
-          name: userData.name || "User",
-          email: userData.email || "",
-          profilePicture: userData.profilePicture || "https://via.placeholder.com/150",
-          isEmailVerified: userData.isEmailVerified || false,
-        });
-      } catch (err) {
-        console.error("Error fetching user:", err.message);
-        if (err.message.includes("401") || err.message.includes("403")) {
-          handleLogoutClick();
-        }
-      }
-    };
-
-    fetchUserDetails();
-  }, [isLoggedIn, handleLogoutClick]);
 
   useEffect(() => {
     const fetchCartDetails = async () => {
@@ -135,10 +92,10 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
   };
 
   return (
-    <nav 
+    <nav
       className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled 
-          ? "bg-[#234781]/80 backdrop-blur-md border-b border-[#234781]/20" 
+        scrolled
+          ? "bg-[#234781]/80 backdrop-blur-md border-b border-[#234781]/20"
           : "bg-[#234781]/60 backdrop-blur-sm"
       } shadow-lg`}
     >
@@ -161,11 +118,13 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
             )}
           </button>
 
-          <div className={`${
-            isMenuOpen 
-              ? 'block absolute top-16 left-0 right-0 bg-black/70 backdrop-blur-lg border-y border-white/10 shadow-lg p-4 md:p-0 md:shadow-none' 
-              : 'hidden'
-            } md:block md:flex-grow md:ml-6`}>
+          <div
+            className={`${
+              isMenuOpen
+                ? "block absolute top-16 left-0 right-0 bg-black/70 backdrop-blur-lg border-y border-white/10 shadow-lg p-4 md:p-0 md:shadow-none"
+                : "hidden"
+            } md:block md:flex-grow md:ml-6`}
+          >
             <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
               {["Home", "Shop", "About", "Contact"].map((item) => (
                 <Link
@@ -188,7 +147,21 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
                     onClick={toggleUserDropdown}
                     className="flex items-center space-x-2 px-3 py-2 rounded-full text-white hover:bg-white/10 transition-colors"
                   >
-                    <FaUser className="h-4 w-4" />
+                    {user?.profileImage ? (
+                      <img
+                        src={user.profileImage}
+                        alt={user.name}
+                        className="h-6 w-6 rounded-full object-cover border-2 border-white/20"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect width="100%" height="100%" fill="%23234781"/><text x="50%" y="50%" font-size="12" fill="white" text-anchor="middle" dy=".3em">${user.name?.charAt(0).toUpperCase() || "U"}</text></svg>`;
+                        }}
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full bg-[#234781] flex items-center justify-center text-white font-medium text-sm border-2 border-white/20">
+                        {user?.name?.charAt(0).toUpperCase() || "U"}
+                      </div>
+                    )}
                     <span>{user?.name || "User"}</span>
                   </button>
 
@@ -196,15 +169,21 @@ const Navbar = ({ isLoggedIn, user: propUser, onLogout }) => {
                     <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-lg py-1 bg-black/50 backdrop-blur-lg border border-white/10">
                       <div className="px-4 py-3 border-b border-white/10">
                         <div className="flex items-center space-x-3">
-                          <img
-                            src={user?.profilePicture}
-                            alt="Profile"
-                            className="h-10 w-10 rounded-full object-cover border-2 border-white/20"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "https://via.placeholder.com/150";
-                            }}
-                          />
+                          {user?.profileImage ? (
+                            <img
+                              src={user.profileImage}
+                              alt={user.name}
+                              className="h-10 w-10 rounded-full object-cover border-2 border-white/20"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="100%" height="100%" fill="%23234781"/><text x="50%" y="50%" font-size="20" fill="white" text-anchor="middle" dy=".3em">${user.name?.charAt(0).toUpperCase() || "U"}</text></svg>`;
+                              }}
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-[#234781] flex items-center justify-center text-white font-medium border-2 border-white/20">
+                              {user?.name?.charAt(0).toUpperCase() || "U"}
+                            </div>
+                          )}
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-white/90">{user?.name}</span>
                             <span className="text-xs text-white/70">{user?.email}</span>

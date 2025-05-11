@@ -94,19 +94,15 @@ const CheckboxLabel = styled.label`
 
 const SocialLoginContainer = styled.div`
   margin-top: 20px;
-  text-align: center;
-`;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 
-const SocialButton = styled.button`
-  background: #f0f0f0;
-  color: #333;
-  border: 1px solid #ccc;
-  padding: 8px 15px;
-  font-size: 14px;
-  border-radius: 5px;
-  cursor: not-allowed;
-  margin: 0 5px;
-  font-family: "Poppins", sans-serif;
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
 `;
 
 function CustomAlert({ message, type, onClose }) {
@@ -353,7 +349,6 @@ function Login({ onLoginSuccess }) {
                   size="large"
                   width="100%"
                 />
-                <SocialButton disabled>Facebook (Coming Soon)</SocialButton>
               </SocialLoginContainer>
             </Components.Form>
           </Components.SignUpContainer>
@@ -413,7 +408,6 @@ function Login({ onLoginSuccess }) {
                   size="large"
                   width="100%"
                 />
-                <SocialButton disabled>Facebook (Coming Soon)</SocialButton>
               </SocialLoginContainer>
             </Components.Form>
           </Components.SignInContainer>
