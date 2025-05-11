@@ -23,6 +23,16 @@ import {
 import axios from 'axios';
 import { debounce } from './utils/debounce';
 
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const Cart = () => {
   const navigate = useNavigate();
   const { cart, removeFromCart, addToCart, updateQuantity, mergeCarts, refreshCart, isLoading: cartLoading } = useCart();
@@ -261,40 +271,168 @@ const Cart = () => {
     }
 
     try {
-      const orderResponse = await axios.post(
-        'http://localhost:5000/api/orders',
-        {
-          items: cart.filter((item) => selectedItems.includes(item._id || item.productId)).map((item) => ({
-            productId: item.productId || item._id,
-            quantity: item.quantity,
-            price: item.price,
-            name: item.name,
-            imageUrl: item.imageUrl,
-            color: item.color,
-          })),
+      console.log('Initiating payment process...');
+      const res = await loadRazorpay();
+      if (!res) {
+        showToast('Razorpay SDK failed to load', 'error');
+        return;
+      }
+
+      // Ensure finalAmount is a number and properly formatted
+      const amount = parseFloat(finalAmount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error('Invalid amount');
+      }
+
+      const orderData = {
+        amount: amount,
+        currency: 'INR',
+        notes: {
+          shipping_address: shippingInfo.address,
+          contact: shippingInfo.contact,
+          delivery_type: deliveryType
+        }
+      };
+
+      console.log('Creating order with data:', orderData);
+
+      const response = await fetch('http://localhost:5000/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(orderData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create order');
+      }
+
+      const { order } = await response.json();
+      console.log('Order created:', order);
+
+      const options = {
+        key: 'rzp_test_59tiIuPnfUGOrp',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'NEW ERODE FANCY',
+        description: 'Payment for order',
+        order_id: order.id,
+        prefill: {
+          name: shippingInfo.name,
+          email: user?.email,
+          contact: shippingInfo.contact
+        },
+        handler: async function(response) {
+          try {
+            const verifyResponse = await fetch('http://localhost:5000/api/orders/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                amount: finalAmount
+              })
+            });
+
+            const verifyData = await verifyResponse.json();
+
+            if (verifyData.success) {
+              const completeOrderResponse = await fetch('http://localhost:5000/api/orders/complete', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                  orderId: response.razorpay_order_id,
+                  items: cart.filter(item => selectedItems.includes(item._id || item.productId)),
+                  shippingInfo,
+                  totalAmount: finalAmount,
+                  paymentId: response.razorpay_payment_id
+                })
+              });
+
+              if (!completeOrderResponse.ok) {
+                throw new Error('Failed to complete order');
+              }
+
+              const orderData = await completeOrderResponse.json();
+              
+              // Clear local cart state
+              await refreshCart();
+              setSelectedItems([]);
+              setStep(1);
+              
+              showToast('Order placed successfully!', 'success');
+              navigate('/orders');
+            } else {
+              throw new Error('Payment verification failed');
+            }
+          } catch (error) {
+            console.error('Payment completion error:', error);
+            showToast('Error completing payment', 'error');
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            showToast('Payment cancelled', 'error');
+          }
+        },
+        theme: {
+          color: '#234781'
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+
+    } catch (error) {
+      console.error('Payment error:', error);
+      showToast(error.message || 'Failed to initiate payment', 'error');
+    }
+  };
+
+  // New helper function to complete order
+  const completeOrder = async (orderId, paymentId) => {
+    try {
+      const orderResponse = await fetch('http://localhost:5000/api/orders/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          orderId,
+          items: cart.filter(item => selectedItems.includes(item._id || item.productId)),
           shippingInfo,
           deliveryType,
           giftOptions,
           orderNotes,
           totalAmount: finalAmount,
-        },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }
-      );
-
-      // Clear the cart after placing the order
-      await axios.delete('http://localhost:5000/api/cart', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          paymentId
+        })
       });
 
-      refreshCart(); // Refresh the cart context to reflect the cleared cart
-      setSelectedItems([]); // Clear selected items
-      setStep(1); // Reset to the first step
-      showToast('Order placed successfully! Pay on delivery.', 'success');
+      if (!orderResponse.ok) {
+        throw new Error('Failed to complete order');
+      }
+
+      await refreshCart();
+      setSelectedItems([]);
+      setStep(1);
+      showToast('Order placed successfully!', 'success');
+      navigate('/orders');
+
     } catch (error) {
-      console.error('Payment error:', error);
-      showToast('Error processing order', 'error');
+      console.error('Order completion error:', error);
+      showToast('Error completing order', 'error');
     }
   };
 

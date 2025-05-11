@@ -8,6 +8,7 @@ const path = require("path");
 const { GridFSBucket } = require("mongodb");
 const crypto = require("crypto");
 const { OAuth2Client } = require("google-auth-library");
+const Razorpay = require('razorpay');
 
 const User = require("./models/User");
 const Product = require("./models/Product");
@@ -25,7 +26,7 @@ const client = new OAuth2Client("118179755200-u2f3rt2n4oq85mmm6hja4qpqu3cl83ts.a
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5002"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -1182,6 +1183,133 @@ app.get("/api/admin/products-stats", async (req, res) => {
   }
 });
 
+// Razorpay integration
+const razorpay = new Razorpay({
+  key_id: 'rzp_test_59tiIuPnfUGOrp',
+  key_secret: '4u9ny5eo4R7waJNh3DVXshsU'  // Replace with your actual secret
+});
+
+// Create Razorpay order
+app.post('/api/orders/create', authenticateToken, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    
+    // Convert amount to lowest currency unit (paise)
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+    
+    console.log('Creating Razorpay order:', {
+      amount: amountInPaise,
+      currency: 'INR'
+    });
+
+    const order = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: 'order_' + Date.now(),
+      notes: {
+        userId: req.user.userId,
+        ...req.body.notes
+      },
+      payment_capture: 1
+    });
+
+    console.log('Order created successfully:', order);
+
+    res.status(200).json({
+      success: true,
+      order: {
+        ...order,
+        key: razorpay.key_id
+      }
+    });
+
+  } catch (error) {
+    console.error('Razorpay order creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create order',
+      error: error.description || error.message
+    });
+  }
+});
+
+// Verify Razorpay payment
+app.post('/api/orders/verify', authenticateToken, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', razorpay.key_secret)
+      .update(body.toString())
+      .digest('hex');
+
+    const isAuthentic = expectedSignature === razorpay_signature;
+
+    if (isAuthentic) {
+      res.json({
+        success: true,
+        message: 'Payment verified successfully'
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Payment verification failed'
+      });
+    }
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying payment',
+      error: error.message
+    });
+  }
+});
+
+// Complete order after payment
+app.post('/api/orders/complete', authenticateToken, async (req, res) => {
+  try {
+    const { orderId, items, shippingInfo, totalAmount, paymentId } = req.body;
+
+    const order = new Order({
+      userId: req.user.userId,
+      orderId,
+      items,
+      shippingInfo,
+      totalAmount,
+      paymentId,
+      status: 'Processing',      // Changed from 'Paid' to 'Processing'
+      paymentStatus: 'Completed' // Payment status is 'Completed'
+    });
+
+    await order.save();
+
+    // Clear user's cart after successful order
+    await Cart.findOneAndUpdate(
+      { userId: req.user.userId },
+      { 
+        items: [],
+        totalQuantity: 0,
+        totalPrice: 0
+      }
+    );
+
+    res.json({ 
+      success: true, 
+      order,
+      message: 'Order placed successfully and cart cleared'
+    });
+  } catch (error) {
+    console.error('Order completion error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to complete order',
+      error: error.message 
+    });
+  }
+});
+
 // GridFS setup
 let gridfsBucket;
 mongoose.connection.once("open", () => {
@@ -1238,6 +1366,17 @@ app.get("/api/images/:id", async (req, res) => {
     console.error("Error fetching image:", error.message);
     res.status(500).json({ error: "Failed to fetch image" });
   }
+});
+
+// Add error handler for GridFS operations
+app.use((error, req, res, next) => {
+  if (error.name === "MongoError" || error.name === "MongoGridFSError") {
+    console.error("GridFS Error:", error);
+    return res.status(
+
+500).json({ error: "File system error" });
+  }
+  next(error);
 });
 
 // Add error handler for GridFS operations
