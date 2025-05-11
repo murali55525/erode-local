@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react"
 import { useCart } from "./CartContext"
 import axios from "axios"
@@ -24,7 +23,8 @@ import {
   Star,
 } from "lucide-react"
 
-const API_BASE_URL = "http://localhost:5001/api"
+// Use a single API base URL for all requests including images
+const API_BASE_URL = "http://localhost:5000"
 
 // Map category icons with Lucide icons (normalized to match backend)
 const CATEGORY_ICONS = {
@@ -113,7 +113,7 @@ const Shop = () => {
       setLoading(true)
       setError("")
       try {
-        const response = await axios.get(`${API_BASE_URL}/products`, { timeout: 5000 })
+        const response = await axios.get(`${API_BASE_URL}/api/products`, { timeout: 5000 })
         const productsData = response.data || []
         setProducts(productsData)
         const sortedProducts = sortProducts(productsData, sortOption)
@@ -136,7 +136,7 @@ const Shop = () => {
   useEffect(() => {
     const fetchWishlist = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/wishlist`, {
+        const response = await axios.get(`${API_BASE_URL}/api/wishlist`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         setWishlist(response.data.items?.map((item) => item.productId.toString()) || [])
@@ -182,7 +182,7 @@ const Shop = () => {
     formData.append("image", file)
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/products/lens-search`, formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/products/lens-search`, formData, {
         timeout: 10000,
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -212,7 +212,7 @@ const Shop = () => {
       setSearch(voiceQuery)
       setLoading(true)
       try {
-        const response = await axios.get(`${API_BASE_URL}/products`, { timeout: 5000 })
+        const response = await axios.get(`${API_BASE_URL}/api/products`, { timeout: 5000 })
         const filtered = response.data.filter((product) =>
           product.name.toLowerCase().includes(voiceQuery.toLowerCase()),
         )
@@ -234,7 +234,7 @@ const Shop = () => {
     setLoading(true)
     setError("")
     try {
-      const response = await axios.get(`${API_BASE_URL}/products`, { timeout: 5000 })
+      const response = await axios.get(`${API_BASE_URL}/api/products`, { timeout: 5000 })
       const filtered = search.trim()
         ? response.data.filter((product) => product.name.toLowerCase().includes(search.toLowerCase()))
         : response.data
@@ -289,14 +289,14 @@ const Shop = () => {
     try {
       const isInWishlist = wishlist.includes(productId)
       if (isInWishlist) {
-        await axios.delete(`${API_BASE_URL}/wishlist/remove/${productId}`, {
+        await axios.delete(`${API_BASE_URL}/api/wishlist/remove/${productId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         setWishlist((prev) => prev.filter((id) => id !== productId))
         setPopupMessage("Removed from Wishlist")
       } else {
         await axios.post(
-          `${API_BASE_URL}/wishlist/add`,
+          `${API_BASE_URL}/api/wishlist/add`,
           { productId },
           { headers: { Authorization: `Bearer ${token}` } },
         )
@@ -346,12 +346,6 @@ const Shop = () => {
       setError(error.response?.data?.message || "Failed to add item to cart.")
     }
     if (fromModal) setShowModal(false)
-  }
-
-  // Handle image error
-  const handleImageError = (e) => {
-    e.target.onerror = null
-    e.target.src = "https://via.placeholder.com/300x200?text=No+Image"
   }
 
   // Change quantity
@@ -622,10 +616,15 @@ const Shop = () => {
               <div className="relative h-64 overflow-hidden">
                 {product.imageId ? (
                   <img
-                    src={`${API_BASE_URL}/images/${product.imageId}`}
+                    src={`${API_BASE_URL}/api/images/${product.imageId}`}
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
-                    onError={handleImageError}
+                    onError={(e) => {
+                      console.error('Image load error:', e);
+                      e.target.onerror = null;
+                      e.target.src = '/images/default.jpg';
+                    }}
+                    loading="lazy"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-500">
@@ -732,10 +731,15 @@ const Shop = () => {
                 <div className="flex items-center justify-center bg-blue-50 rounded-xl overflow-hidden">
                   {selectedProduct.imageId ? (
                     <img
-                      src={`${API_BASE_URL}/images/${selectedProduct.imageId}`}
+                      src={`${API_BASE_URL}/api/images/${selectedProduct.imageId}`}
                       alt={selectedProduct.name}
                       className="max-h-[400px] object-contain"
-                      onError={handleImageError}
+                      onError={(e) => {
+                        console.error('Image load error:', e);
+                        e.target.onerror = null;
+                        e.target.src = '/images/default.jpg';
+                      }}
+                      loading="lazy"
                     />
                   ) : (
                     <div className="h-[400px] w-full flex items-center justify-center text-blue-500">
