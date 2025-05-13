@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom" // Add this import
+import { useNavigate, useLocation } from "react-router-dom" // Add useLocation import
 import { useCart } from "./CartContext"
 import axios from "axios"
 import {
@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 
 // Use a single API base URL for all requests including images
-const API_BASE_URL = "https://render-1-ehkn.onrender.com"
+const API_BASE_URL = "http://localhost:5000"
 
 // Map category icons with Lucide icons (normalized to match backend)
 const CATEGORY_ICONS = {
@@ -85,7 +85,8 @@ const COLORS = {
 }
 
 const Shop = () => {
-  const navigate = useNavigate(); // Add this line
+  const navigate = useNavigate();
+  const location = useLocation(); // Add this to get URL params
   const { addToCart } = useCart()
   const [search, setSearch] = useState("")
   const [products, setProducts] = useState([])
@@ -118,12 +119,24 @@ const Shop = () => {
         const response = await axios.get(`${API_BASE_URL}/api/products`, { timeout: 5000 })
         const productsData = response.data || []
         setProducts(productsData)
-        const sortedProducts = sortProducts(productsData, sortOption)
-        setFilteredProducts(sortedProducts)
-
-        // Extract 8 random categories for featured display
-        const categories = [...new Set(productsData.map((p) => p.category).filter(Boolean))]
-        setFeaturedCategories(categories.sort(() => 0.5 - Math.random()).slice(0, 8))
+        
+        // Get category from URL parameter
+        const params = new URLSearchParams(location.search);
+        const categoryParam = params.get('category');
+        
+        if (categoryParam) {
+          // If category parameter exists, filter products by that category
+          setActiveCategory(categoryParam);
+          setSelectedCategories([categoryParam]);
+          const filtered = productsData.filter(product => 
+            product.category === categoryParam
+          );
+          setFilteredProducts(sortProducts(filtered, sortOption));
+        } else {
+          // No category filter, show all products
+          const sortedProducts = sortProducts(productsData, sortOption)
+          setFilteredProducts(sortedProducts)
+        }
       } catch (error) {
         console.error("Error fetching products:", error)
         setError(`Failed to load products: ${error.message}`)
@@ -132,26 +145,11 @@ const Shop = () => {
       }
     }
     fetchData()
-  }, [])
+  }, [location.search, sortOption]) // Add location.search as dependency
 
   // Fetch wishlist if authenticated
-  useEffect(() => {
-    const fetchWishlist = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/wishlist`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        setWishlist(response.data.items?.map((item) => item.productId.toString()) || [])
-      } catch (error) {
-        console.error("Error fetching wishlist:", error)
-        setError("Failed to load wishlist.")
-      }
-    }
-
-    if (token) {
-      fetchWishlist()
-    }
-  }, [token])
+ 
+    
 
   // Sort products based on selected option
   const sortProducts = (productList, option) => {

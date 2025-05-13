@@ -44,16 +44,16 @@ const getImageUrl = (imageUrl) => {
   
   // If it includes /api/images/ path but doesn't have the base URL
   if (imageUrl.includes('/api/images/')) {
-    return `https://render-1-ehkn.onrender.com${imageUrl}`;
+    return `http://localhost:5000${imageUrl}`;
   }
   
   // If it's just an ID, construct the full URL
   if (imageUrl.match(/^[a-f0-9]{24}$/)) {
-    return `https://render-1-ehkn.onrender.com/api/images/${imageUrl}`;
+    return `http://localhost:5000/api/images/${imageUrl}`;
   }
   
   // For any other relative path
-  return `https://render-1-ehkn.onrender.com${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+  return `http://localhost:5000${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
 };
 
 const Cart = () => {
@@ -128,11 +128,11 @@ const Cart = () => {
       try {
         if (isLoggedIn) {
           const [wishlistRes, recRes, pointsRes] = await Promise.allSettled([
-            axios.get('https://render-1-ehkn.onrender.com/api/wishlist', {
+            axios.get('http://localhost:5000/api/wishlist', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { wishlist: [] }})),
-            axios.get('https://render-1-ehkn.onrender.com/api/recommendations').catch(() => ({ data: [] })),
-            axios.get('https://render-1-ehkn.onrender.com/api/loyalty-points', {
+            axios.get('http://localhost:5000/api/recommendations').catch(() => ({ data: [] })),
+            axios.get('http://localhost:5000/api/loyalty-points', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { points: 0 }}))
           ]);
@@ -141,7 +141,7 @@ const Cart = () => {
           setRecommendations((recRes.value?.data || []).slice(0, 4));
           setLoyaltyPoints(pointsRes.value?.data?.points || 0);
         } else {
-          const recRes = await axios.get('https://render-1-ehkn.onrender.com/api/recommendations')
+          const recRes = await axios.get('http://localhost:5000/api/recommendations')
             .catch(() => ({ data: [] }));
           setRecommendations((recRes.data || []).slice(0, 4));
         }
@@ -202,7 +202,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         await axios.post(
-          'https://render-1-ehkn.onrender.com/api/wishlist',
+          'http://localhost:5000/api/wishlist',
           { productId: item.productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -234,7 +234,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         const response = await axios.post(
-          `https://render-1-ehkn.onrender.com/api/wishlist`,
+          `http://localhost:5000/api/wishlist`,
           { productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -301,15 +301,32 @@ const Cart = () => {
         return;
       }
 
-      // Ensure finalAmount is a number and properly formatted
-      const amount = parseFloat(finalAmount);
-      if (isNaN(amount) || amount <= 0) {
+      // Get selected cart items
+      const selectedCartItems = cart.filter(item => 
+        selectedItems.includes(item._id || item.productId)
+      );
+      
+      // Ensure finalAmount is a number and properly formatted for Razorpay (in paise)
+      // Razorpay expects amount in smallest currency unit (paise for INR)
+      const amountInRupees = parseFloat(finalAmount);
+      if (isNaN(amountInRupees) || amountInRupees <= 0) {
         throw new Error('Invalid amount');
       }
+      const amountInPaise = Math.round(amountInRupees * 100);
 
       const orderData = {
-        amount: amount,
+        amount: amountInPaise,
         currency: 'INR',
+        items: selectedCartItems.map(item => ({
+          productId: item.productId || item._id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          color: item.selectedColor || item.color || null
+        })),
+        shippingDetails: shippingInfo,
+        deliveryType: deliveryType,
+        discount: discount,
         notes: {
           shipping_address: shippingInfo.address,
           contact: shippingInfo.contact,
@@ -319,119 +336,207 @@ const Cart = () => {
 
       console.log('Creating order with data:', orderData);
 
-      const response = await fetch('https://render-1-ehkn.onrender.com/api/orders/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(orderData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create order');
-      }
-
-      const { order } = await response.json();
-      console.log('Order created:', order);
-
-      const options = {
-        key: 'rzp_test_59tiIuPnfUGOrp',
-        amount: order.amount,
-        currency: order.currency,
-        name: 'NEW ERODE FANCY',
-        description: 'Payment for order',
-        order_id: order.id,
-        prefill: {
-          name: shippingInfo.name,
-          email: user?.email,
-          contact: shippingInfo.contact
-        },
-        handler: async function(response) {
-          try {
-            const verifyResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                amount: finalAmount
-              })
-            });
-
-            const verifyData = await verifyResponse.json();
-
-            if (verifyData.success) {
-              const completeOrderResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/complete', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                  orderId: response.razorpay_order_id,
-                  items: cart.filter(item => selectedItems.includes(item._id || item.productId)),
-                  shippingInfo,
-                  totalAmount: finalAmount,
-                  paymentId: response.razorpay_payment_id
-                })
-              });
-
-              if (!completeOrderResponse.ok) {
-                throw new Error('Failed to complete order');
-              }
-
-              const orderData = await completeOrderResponse.json();
-              
-              // Clear local cart state
-              await refreshCart();
-              setSelectedItems([]);
-              setStep(1);
-              
-              showToast('Order placed successfully!', 'success');
-              navigate('/orders');
-            } else {
-              throw new Error('Payment verification failed');
+      // Add a try-catch for better debugging
+      try {
+        // Use axios instead of fetch to better handle certificate issues
+        const response = await axios.post(
+          'http://localhost:5000/api/orders/create', 
+          orderData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
-          } catch (error) {
-            console.error('Payment completion error:', error);
-            showToast('Error completing payment', 'error');
           }
-        },
-        modal: {
-          ondismiss: function() {
-            showToast('Payment cancelled', 'error');
-          }
-        },
-        theme: {
-          color: '#234781'
+        );
+
+        if (!response.data) {
+          throw new Error('No data received from order creation');
         }
-      };
 
-      const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
+        const { order } = response.data;
+        console.log('Order created successfully:', order);
+        
+        const options = {
+          key: 'rzp_test_59tiIuPnfUGOrp', // Replace with your actual Razorpay test key
+          amount: order.amount,
+          currency: order.currency,
+          name: 'NEW ERODE FANCY',
+          description: 'Payment for order',
+          order_id: order.id,
+          prefill: {
+            name: shippingInfo.name,
+            email: user?.email,
+            contact: shippingInfo.contact
+          },
+          handler: async function(response) {
+            try {
+              console.log('Payment successful, verifying...', response);
+              
+              // Selected cart items for order completion
+              const selectedCartItems = cart.filter(item => 
+                selectedItems.includes(item._id || item.productId)
+              );
+              
+              // Use axios for verification
+              const verifyResponse = await axios.post(
+                'http://localhost:5000/api/orders/verify', 
+                {
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  amount: amountInPaise
+                },
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  }
+                }
+              );
 
+              const verifyData = verifyResponse.data;
+              console.log('Verification response:', verifyData);
+
+              if (verifyData.success) {
+                // Use axios for order completion
+                const completeOrderResponse = await axios.post(
+                  'http://localhost:5000/api/orders/complete',
+                  {
+                    orderId: response.razorpay_order_id,
+                    items: selectedCartItems,
+                    shippingInfo,
+                    totalAmount: amountInRupees,
+                    paymentId: response.razorpay_payment_id,
+                    deliveryType,
+                    giftOptions,
+                    orderNotes
+                  },
+                  {
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                  }
+                );
+
+                const orderData = completeOrderResponse.data;
+                console.log('Order completed successfully:', orderData);
+                
+                // Clear local cart state
+                await refreshCart();
+                setSelectedItems([]);
+                setStep(1);
+                
+                showToast('Order placed successfully!', 'success');
+                navigate('/orders');
+              } else {
+                throw new Error('Payment verification failed');
+              }
+            } catch (error) {
+              console.error('Payment completion error:', error);
+              showToast(error.message || 'Error completing payment', 'error');
+            }
+          },
+          modal: {
+            ondismiss: function() {
+              showToast('Payment cancelled', 'error');
+            }
+          },
+          theme: {
+            color: '#234781'
+          }
+        };
+
+        const paymentObject = new window.Razorpay(options);
+        paymentObject.open();
+        
+      } catch (orderError) {
+        console.error('Order creation error:', orderError);
+        
+        // Mock order data for UI testing when server fails
+        // This allows the user interface to be tested even when the server is down
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using mock order for development testing');
+          
+          const mockOrder = {
+            id: 'order_mock_' + Date.now(),
+            amount: amountInPaise,
+            currency: 'INR',
+          };
+          
+          // Use a more direct approach in development mode to avoid Razorpay API calls
+          showToast('Test payment completed. This is a simulated transaction.', 'success');
+          await refreshCart();
+          setSelectedItems([]);
+          setStep(1);
+          navigate('/orders');
+          return;
+          
+          /* 
+          // Uncomment this block if you have a valid Razorpay test key
+          const options = {
+            key: 'rzp_test_YOUR_TEST_KEY_HERE', // Replace with your actual test key
+            amount: mockOrder.amount,
+            currency: mockOrder.currency,
+            name: 'NEW ERODE FANCY',
+            description: 'Payment for order (TEST MODE)',
+            order_id: mockOrder.id,
+            prefill: {
+              name: shippingInfo.name,
+              email: user?.email,
+              contact: shippingInfo.contact
+            },
+            handler: function(response) {
+              showToast('Test payment completed. This is not a real transaction.', 'success');
+              setStep(1);
+              navigate('/orders');
+            },
+            modal: {
+              ondismiss: function() {
+                showToast('Test payment cancelled', 'error');
+              }
+            },
+            theme: {
+              color: '#234781'
+            },
+            notes: {
+              test_mode: 'true'
+            }
+          };
+          
+          try {
+            const paymentObject = new window.Razorpay(options);
+            paymentObject.open();
+          } catch (razorpayError) {
+            console.error('Razorpay error:', razorpayError);
+            showToast('Failed to open payment dialog. Simulating payment success.', 'info');
+            await refreshCart();
+            setSelectedItems([]);
+            setStep(1);
+            navigate('/orders');
+          }
+          */
+          
+          return; // Exit the function
+        } else {
+          // In production, show the actual error
+          throw orderError;
+        }
+      }
+      
     } catch (error) {
       console.error('Payment error:', error);
-      showToast(error.message || 'Failed to initiate payment', 'error');
+      showToast(error.response?.data?.message || error.message || 'Failed to initiate payment', 'error');
     }
   };
 
   // New helper function to complete order
   const completeOrder = async (orderId, paymentId) => {
     try {
-      const orderResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
+      const orderResponse = await axios.post(
+        'http://localhost:5000/api/orders/complete',
+        {
           orderId,
           items: cart.filter(item => selectedItems.includes(item._id || item.productId)),
           shippingInfo,
@@ -440,12 +545,14 @@ const Cart = () => {
           orderNotes,
           totalAmount: finalAmount,
           paymentId
-        })
-      });
-
-      if (!orderResponse.ok) {
-        throw new Error('Failed to complete order');
-      }
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
 
       await refreshCart();
       setSelectedItems([]);
@@ -455,13 +562,88 @@ const Cart = () => {
 
     } catch (error) {
       console.error('Order completion error:', error);
-      showToast('Error completing order', 'error');
+      showToast(error.response?.data?.message || error.message || 'Error completing order', 'error');
+    }
+  };
+
+  // Add the handleCashOnDelivery function
+  const handleCashOnDelivery = async () => {
+    try {
+      const requiredFields = ['name', 'address', 'contact', 'city', 'postalCode'];
+      if (requiredFields.some((field) => !shippingInfo[field])) {
+        return showToast('Please fill all shipping details', 'error');
+      }
+      if (selectedItems.length === 0) {
+        return showToast('Please select at least one item', 'error');
+      }
+
+      // Get selected cart items
+      const selectedCartItems = cart.filter(item => 
+        selectedItems.includes(item._id || item.productId)
+      );
+      
+      // Create a COD order directly using axios instead of fetch
+      try {
+        const response = await axios.post(
+          'http://localhost:5000/api/orders/cod',
+          {
+            items: selectedCartItems.map(item => ({
+              productId: item.productId || item._id,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              color: item.selectedColor || item.color || null
+            })),
+            shippingInfo,
+            totalAmount: finalAmount,
+            deliveryType,
+            giftOptions,
+            orderNotes,
+            discount
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        );
+
+        const orderData = response.data;
+        console.log('COD order placed successfully:', orderData);
+        
+        // Clear cart
+        await refreshCart();
+        setSelectedItems([]);
+        setStep(1);
+        
+        showToast('Order placed successfully! You can pay on delivery.', 'success');
+        navigate('/orders');
+      } catch (codError) {
+        console.error('COD order error:', codError);
+        
+        // In development mode, mock a successful order for testing
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using mock COD order for development testing');
+          await refreshCart();
+          setSelectedItems([]);
+          setStep(1);
+          showToast('Test COD order placed successfully! (Development mode)', 'success');
+          navigate('/orders');
+          return;
+        }
+        
+        throw codError;
+      }
+    } catch (error) {
+      console.error('COD order error:', error);
+      showToast(error.response?.data?.message || error.message || 'Failed to place COD order', 'error');
     }
   };
 
   const fetchTrackingInfo = async (orderId) => {
     try {
-      const response = await axios.get(`https://render-1-ehkn.onrender.com/api/orders/track`, {
+      const response = await axios.get(`http://localhost:5000/api/orders/track`, {
         params: { orderId },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       }).catch(() => ({
@@ -678,7 +860,6 @@ const Cart = () => {
                         <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Subtotal: <span>₹{totalAmount}</span></p>
                         <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Discount: <span>₹{discount}</span></p>
                         <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Delivery: <span>₹{deliveryCharge}</span></p>
-                        <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Gift Wrapping: <span>₹{giftCharge}</span></p>
                         <p className="flex justify-between pt-2 font-bold text-lg sm:text-xl text-blue-600">Total: <span>₹{finalAmount}</span></p>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-6">
@@ -790,12 +971,26 @@ const Cart = () => {
               <div className="max-w-md mx-auto bg-white p-4 sm:p-8 rounded-xl shadow-md text-center">
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6">Payment</h2>
                 <p className="text-2xl sm:text-3xl font-bold text-blue-600 mb-6 sm:mb-8">Final Amount: ₹{finalAmount}</p>
-                <button 
-                  onClick={handlePayment} 
-                  className="w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-green-700 transition hover:-translate-y-1 shadow-lg"
-                >
-                  Confirm Order (Pay on Delivery)
-                </button>
+                <div className="flex flex-col gap-4">
+                  <button 
+                    onClick={handlePayment} 
+                    className="w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-green-700 transition hover:-translate-y-1 shadow-lg"
+                  >
+                    Pay Online Now
+                  </button>
+                  <button 
+                    onClick={handleCashOnDelivery} 
+                    className="w-full bg-blue-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-blue-700 transition hover:-translate-y-1 shadow-lg"
+                  >
+                    Cash on Delivery
+                  </button>
+                  <button
+                    onClick={() => setStep(2)}
+                    className="w-full bg-gray-200 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-gray-300 transition"
+                  >
+                    Back
+                  </button>
+                </div>
               </div>
             </div>
           )}

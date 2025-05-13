@@ -201,7 +201,7 @@ const HomePage = () => {
               <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-20">
                 <h3 className="text-2xl font-bold mb-2">{category.name}</h3>
                 <Link
-                  to={`/shop?category=${category.name.toLowerCase()}`}
+                  to={`/shop?category=${encodeURIComponent(category.name)}`}
                   className="inline-flex items-center text-white group-hover:underline transition-all"
                 >
                   View Collection <ChevronRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
@@ -350,7 +350,7 @@ const HomePage = () => {
           ].map(category => (
             <Link
               key={category.name}
-              to={`/shop?category=${category.name.toLowerCase()}`}
+              to={`/shop?category=${encodeURIComponent(category.name)}`}
               className="group relative rounded-xl overflow-hidden shadow-lg transform transition-all duration-500 hover:-translate-y-2"
             >
               <div className="aspect-square relative overflow-hidden">

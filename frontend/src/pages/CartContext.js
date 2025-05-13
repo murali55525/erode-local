@@ -15,16 +15,16 @@ const formatImageUrl = (imageUrl) => {
   
   // If it includes /api/images/ path but doesn't have the base URL
   if (imageUrl.includes('/api/images/')) {
-    return `https://render-1-ehkn.onrender.com${imageUrl}`;
+    return `http://localhost:5000${imageUrl}`;
   }
   
   // If it's just an ID, construct the full URL
   if (imageUrl.match(/^[a-f0-9]{24}$/)) {
-    return `https://render-1-ehkn.onrender.com/api/images/${imageUrl}`;
+    return `http://localhost:5000/api/images/${imageUrl}`;
   }
   
   // For any other relative path
-  return `https://render-1-ehkn.onrender.com${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+  return `http://localhost:5000${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
 };
 
 export const CartProvider = ({ children }) => {
@@ -40,7 +40,7 @@ export const CartProvider = ({ children }) => {
     setIsLoading(true);
     try {
       if (isAuthenticated) {
-        const response = await axios.get('https://render-1-ehkn.onrender.com/api/cart', {
+        const response = await axios.get('http://localhost:5000/api/cart', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         
@@ -87,7 +87,7 @@ export const CartProvider = ({ children }) => {
       };
 
       if (isAuthenticated) {
-        const response = await axios.post('https://render-1-ehkn.onrender.com/api/cart', item, {
+        const response = await axios.post('http://localhost:5000/api/cart', item, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setCart(response.data.cart.items);
@@ -118,7 +118,7 @@ export const CartProvider = ({ children }) => {
   const removeFromCart = useCallback(async (product) => {
     try {
       if (isAuthenticated) {
-        await axios.delete(`https://render-1-ehkn.onrender.com/api/cart/${product._id}`, {
+        await axios.delete(`http://localhost:5000/api/cart/${product._id}`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setCart((prev) => prev.filter((item) => item._id !== product._id));
@@ -141,7 +141,7 @@ export const CartProvider = ({ children }) => {
     try {
       if (isAuthenticated) {
         await axios.put(
-          `https://render-1-ehkn.onrender.com/api/cart/${product._id}`,
+          `http://localhost:5000/api/cart/${product._id}`,
           { quantity: newQuantity },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -193,7 +193,7 @@ export const CartProvider = ({ children }) => {
       // Add all guest cart items to user cart
       await Promise.all(
         guestCart.map((item) =>
-          axios.post('https://render-1-ehkn.onrender.com/api/cart', item, {
+          axios.post('http://localhost:5000/api/cart', item, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           }).catch(error => {
             console.error('Error merging item:', item, error);
@@ -217,7 +217,7 @@ export const CartProvider = ({ children }) => {
   const clearCart = useCallback(async () => {
     try {
       if (isAuthenticated) {
-        await axios.delete('https://render-1-ehkn.onrender.com/api/cart', {
+        await axios.delete('http://localhost:5000/api/cart', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setCart([]);
