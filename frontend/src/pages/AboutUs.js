@@ -16,6 +16,7 @@ import {
   MessageCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import ChatAssistant from './chatbot';
 
 const AboutPage = () => {
   const [loading, setLoading] = useState(true);
@@ -81,17 +82,33 @@ const AboutPage = () => {
     );
 
   return (
-    <div className="matte-bg">
-      {/* Hero Section */}
-      <div className="matte-gradient text-white py-16">
+    <div className="min-h-screen">
+      {/* Hero Section with Background Image */}
+      <div 
+        className="relative min-h-[500px] flex items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1920&q=80")',
+          backgroundColor: '#234781'
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold mb-4">Our Story</h1>
-          <p className="text-xl mb-6 max-w-3xl mx-auto">Bringing beauty and elegance to Erode since 2005</p>
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 text-white drop-shadow-lg">
+            Our Story
+          </h1>
+          <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-2xl mx-auto">
+            Bringing beauty and elegance to Erode since 2005
+          </p>
           <div className="flex justify-center gap-4 mt-8">
-            <Link to="/shop" className="bg-white text-blue-700 px-6 py-2 rounded-full font-semibold hover:bg-blue-100 transition-colors">
+            <Link 
+              to="/shop" 
+              className="bg-white text-blue-700 px-8 py-3 rounded-full font-semibold hover:bg-blue-100 transition-colors transform hover:scale-105"
+            >
               Shop Now
             </Link>
-            <Link to="/contact" className="border-2 border-white text-white px-6 py-2 rounded-full font-semibold hover:bg-white/10 transition-colors">
+            <Link 
+              to="/contact" 
+              className="border-2 border-white text-white px-8 py-3 rounded-full font-semibold hover:bg-white/10 transition-colors"
+            >
               Contact Us
             </Link>
           </div>
@@ -324,6 +341,13 @@ const AboutPage = () => {
               Send
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Add Chatbot */}
+      {isChatOpen && (
+        <div className="fixed bottom-28 right-8 z-50">
+          <ChatAssistant />
         </div>
       )}
     </div>

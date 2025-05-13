@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { 
   MapPin, 
   Phone, 
@@ -13,6 +13,7 @@ import {
   Twitter 
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import ChatAssistant from './chatbot';
 
 const ContactPage = () => {
   const [loading, setLoading] = useState(false);
@@ -25,7 +26,6 @@ const ContactPage = () => {
     subject: "",
     message: ""
   });
-  const mapRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -63,12 +63,20 @@ const ContactPage = () => {
   };
 
   return (
-    <div className="matte-bg">
-      {/* Hero Section */}
-      <div className="matte-gradient text-white py-16">
+    <div className="min-h-screen">
+      {/* Hero Section with Background Image */}
+      <div 
+        className="relative min-h-[400px] flex items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("https://images.unsplash.com/photo-1534536281715-e28d76689b4d?auto=format&fit=crop&w=1920&q=80")',
+          backgroundColor: '#234781'
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold mb-4">Get In Touch</h1>
-          <p className="text-xl mb-6 max-w-3xl mx-auto">
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 text-white drop-shadow-lg">
+            Get In Touch
+          </h1>
+          <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-2xl mx-auto">
             We'd love to hear from you. Contact us for any inquiries, feedback, or assistance.
           </p>
         </div>
@@ -256,21 +264,60 @@ const ContactPage = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-800 mb-2">Find Us</h2>
           <div className="inline-block w-24 h-1 bg-blue-700 mb-6"></div>
-          <p className="text-gray-600 max-w-2xl mx-auto">
+          <p className="text-gray-600 max-w-2xl mx-auto mb-8">
             Visit our store in Erode for personalized beauty consultations and exclusive in-store offers.
           </p>
         </div>
         
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden" ref={mapRef}>
-          {/* This would be replaced with an actual map integration */}
-          <div className="aspect-video w-full bg-blue-100 flex items-center justify-center">
-            <div className="text-center p-12">
-              <MapPin className="w-12 h-12 text-blue-700 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 mb-2">New Erode Fancy</h3>
-              <p className="text-gray-600">51, Sivashanmugam St, near P.S. Park, Erode, Tamil Nadu 638001</p>
-              <button className="mt-6 bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded-lg flex items-center mx-auto">
-                <MapPin className="w-4 h-4 mr-2" /> Get Directions
-              </button>
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Google Maps Embed */}
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden h-[400px]">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3912.172294415799!2d77.71720931744384!3d11.341036799999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ba96f4d4c1ba175%3A0x8c8dc06148e4a5ba!2sSivashanmugam%20St%2C%20Erode%2C%20Tamil%20Nadu%20638001!5e0!3m2!1sen!2sin!4v1647800000000!5m2!1sen!2sin"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen=""
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="rounded-xl"
+            ></iframe>
+          </div>
+
+          {/* Store Information */}
+          <div className="bg-white p-8 rounded-xl shadow-lg">
+            <div className="space-y-6">
+              <div className="flex items-start">
+                <div className="bg-blue-100 p-3 rounded-full mr-4">
+                  <MapPin className="text-blue-700 w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800 mb-1">Store Address</h3>
+                  <p className="text-gray-600">51, Sivashanmugam St, near P.S. Park</p>
+                  <p className="text-gray-600">Erode, Tamil Nadu 638001</p>
+                </div>
+              </div>
+
+              <div className="flex items-start">
+                <div className="bg-blue-100 p-3 rounded-full mr-4">
+                  <Clock className="text-blue-700 w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800 mb-1">Opening Hours</h3>
+                  <p className="text-gray-600">Monday - Saturday: 10:00 AM - 8:00 PM</p>
+                  <p className="text-gray-600">Sunday: 11:00 AM - 6:00 PM</p>
+                </div>
+              </div>
+
+              <a 
+                href="https://www.google.com/maps/dir//Sivashanmugam+St,+Erode,+Tamil+Nadu+638001/@11.3410368,77.7172093,17z/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center w-full bg-blue-700 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition-colors"
+              >
+                <MapPin className="w-5 h-5 mr-2" />
+                Get Directions
+              </a>
             </div>
           </div>
         </div>
@@ -459,6 +506,13 @@ const ContactPage = () => {
               Send
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Add Chatbot */}
+      {isChatOpen && (
+        <div className="fixed bottom-28 right-8 z-50">
+          <ChatAssistant />
         </div>
       )}
     </div>

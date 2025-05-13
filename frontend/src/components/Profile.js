@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const API_BASE_URL = 'http://localhost:5000';  // For orders and other data
-const IMAGE_API_URL = 'http://localhost:5001'; // For product images
+const IMAGE_API_URL = 'http://localhost:5000'; // For product images
 
 const Profile = () => {
   const dispatch = useDispatch();
@@ -1043,9 +1043,11 @@ const Profile = () => {
                     {order.items.map((item) => (
                       <div key={item._id} className="flex items-center gap-4 border-b border-gray-100 pb-4">
                         <div className="flex items-center justify-center bg-blue-50 rounded-xl overflow-hidden w-20 h-20">
-                          {item.imageId ? (
+                          {item.imageId || item.imageUrl ? (
                             <img
-                              src={`${IMAGE_API_URL}/api/images/${item.imageId}`}
+                              src={item.imageId 
+                                ? `${IMAGE_API_URL}/api/images/${item.imageId}` 
+                                : item.imageUrl}
                               alt={item.name}
                               className="w-20 h-20 object-cover rounded-lg border border-gray-200"
                               onError={(e) => {
@@ -1577,4 +1579,4 @@ const Profile = () => {
   );
 };
 
-export default Profile
+export default Profile;

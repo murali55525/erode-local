@@ -21,7 +21,12 @@ const cartItemSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  imageUrl: String
+  imageId: {
+    type: mongoose.Types.ObjectId
+  },
+  imageUrl: {
+    type: String
+  }
 });
 
 const cartSchema = new mongoose.Schema({

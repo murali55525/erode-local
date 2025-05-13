@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom" // Add this import
 import { useCart } from "./CartContext"
 import axios from "axios"
 import {
@@ -84,6 +85,7 @@ const COLORS = {
 }
 
 const Shop = () => {
+  const navigate = useNavigate(); // Add this line
   const { addToCart } = useCart()
   const [search, setSearch] = useState("")
   const [products, setProducts] = useState([])
@@ -328,16 +330,24 @@ const Shop = () => {
 
   // Handle add to cart
   const handleAddToCart = async (product, fromModal = false) => {
+    if (!token) {
+      setError("Please log in to add items to cart.")
+      navigate("/login")
+      return
+    }
+
     if (!product || (fromModal && quantity <= 0)) {
       setError("Invalid product or quantity.")
       return
     }
-    const cartItem = {
-      ...product,
-      quantity: fromModal ? quantity : 1,
-      selectedColor: selectedColor || null,
-    }
+
     try {
+      const cartItem = {
+        ...product,
+        quantity: fromModal ? quantity : 1,
+        selectedColor: selectedColor || null,
+      }
+      
       await addToCart(cartItem)
       setShowPopup(true)
       setTimeout(() => setShowPopup(false), 2000)
@@ -345,7 +355,10 @@ const Shop = () => {
       console.error("Error adding to cart:", error)
       setError(error.response?.data?.message || "Failed to add item to cart.")
     }
-    if (fromModal) setShowModal(false)
+
+    if (fromModal) {
+      setShowModal(false)
+    }
   }
 
   // Change quantity

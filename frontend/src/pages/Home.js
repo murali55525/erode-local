@@ -17,6 +17,7 @@ import {
   Award
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import ChatAssistant from './chatbot';
 
 const HomePage = () => {
   const [dealOfTheDay, setDealOfTheDay] = useState(null);
@@ -133,15 +134,25 @@ const HomePage = () => {
 
   return (
     <div className="matte-bg">
-      {/* Hero Section */}
-      <div className="matte-gradient text-white py-20">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-5xl font-bold mb-4">New Erode Fancy</h1>
-          <p className="text-xl mb-8">Your premium destination for fashion and beauty in Erode</p>
-          <div className="flex flex-wrap gap-4">
+      {/* Hero Section with Background Image */}
+      <div 
+        className="relative min-h-[600px] flex items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1920&q=80")',
+          backgroundColor: '#234781'
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 text-white drop-shadow-lg">
+            New Erode Fancy
+          </h1>
+          <p className="text-xl md:text-2xl mb-8 text-white/90 max-w-2xl mx-auto">
+            Your premium destination for fashion and beauty in Erode
+          </p>
+          <div className="flex flex-wrap gap-4 justify-center">
             <Link
               to="/shop"
-              className="bg-white text-blue-700 px-8 py-3 rounded-full font-semibold hover:bg-blue-100 transition-colors"
+              className="bg-white text-blue-700 px-8 py-3 rounded-full font-semibold hover:bg-blue-100 transition-colors transform hover:scale-105"
             >
               Shop Now
             </Link>
@@ -155,8 +166,8 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Feature Badges */}
-      <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-6 -mt-8 px-4 mb-16">
+      {/* Feature Badges - Update position */}
+      <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-6 -mt-12 px-4 mb-16 relative z-10">
         {[
           { icon: <CheckCircle className="w-6 h-6" />, text: "Premium Quality" },
           { icon: <Truck className="w-6 h-6" />, text: "Free Shipping" },
@@ -321,6 +332,47 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* Categories - Extended Grid */}
+      <div className="matte-section max-w-7xl mx-auto my-16">
+        <h2 className="text-3xl font-bold mb-8 text-center text-gray-800">Our Complete Collection</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {[
+            { name: 'Lipstick', icon: 'Sparkles', image: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Nail Polish', icon: 'Palette', image: 'https://images.unsplash.com/photo-1607779097040-26e80aa4489f?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Perfumes', icon: 'Droplet', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Necklace', icon: 'Gem', image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Bangles', icon: 'Gem', image: 'https://images.unsplash.com/photo-1535632787501-702f5e590c25?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Watches', icon: 'Watch', image: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Gift Items', icon: 'Gift', image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Skin Care', icon: 'Droplet', image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Shoes', icon: 'ShoppingBag', image: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Bags', icon: 'ShoppingBag', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=500&q=60' }
+          ].map(category => (
+            <Link
+              key={category.name}
+              to={`/shop?category=${category.name.toLowerCase()}`}
+              className="group relative rounded-xl overflow-hidden shadow-lg transform transition-all duration-500 hover:-translate-y-2"
+            >
+              <div className="aspect-square relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-t from-blue-900/70 to-transparent z-10"></div>
+                <img 
+                  src={category.image} 
+                  alt={category.name} 
+                  className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110" 
+                />
+                <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-20">
+                  <h3 className="text-lg font-bold mb-1">{category.name}</h3>
+                  <div className="flex items-center text-sm text-white/80">
+                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span>View Products</span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Footer */}
       <footer className="bg-gray-900 text-white pt-16 pb-8">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 px-6">
@@ -356,7 +408,7 @@ const HomePage = () => {
             <address className="text-gray-400 not-italic space-y-2">
               <p className="flex items-center"><MapPin size={16} className="mr-2" /> 51, Sivashanmugam St, Erode</p>
               <p className="flex items-center"><Phone size={16} className="mr-2" /> +91 98765 43210</p>
-              <p className="flex items-center"><Mail size={16} className="mr-2" /> info@neweroderfancy.com</p>
+              <p className="flex items-center"><Mail size={16} className="mr-2" /> info@newerodfancy.com</p>
             </address>
           </div>
         </div>
@@ -364,6 +416,13 @@ const HomePage = () => {
           <p className="text-gray-400">© 2025 New Erode Fancy. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* Chatbot */}
+      {isChatOpen && (
+        <div className="fixed bottom-28 right-8 z-50">
+          <ChatAssistant />
+        </div>
+      )}
 
       {/* Chat Button */}
       <button

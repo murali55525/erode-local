@@ -21,7 +21,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "118179755200-u2
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5002"],
+    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5002", "http://localhost:5001"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -1523,7 +1523,167 @@ app.get("/api/admin/products-stats", async (req, res) => {
   }
 });
 
-// ...existing code...
+// Replace the existing invoice route with this updated version
+app.get("/api/admin/orders/:orderId/invoice", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+    
+    const order = await Order.findById(orderId)
+      .populate("userId", "name email phone")
+      .populate("items.productId", "name");
+      
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${order._id}.pdf"`);
+    
+    // Generate PDF invoice
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument();
+    
+    // Pipe the PDF to the response
+    doc.pipe(res);
+    
+    // Add content to the PDF
+    doc.fontSize(20).text('INVOICE', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Order ID: ${order._id}`);
+    doc.text(`Date: ${new Date(order.orderDate).toLocaleDateString()}`);
+    doc.text(`Customer: ${order.userId?.name || 'N/A'}`);
+    doc.text(`Email: ${order.userId?.email || 'N/A'}`);
+    doc.text(`Phone: ${order.userId?.phone || 'N/A'}`);
+    doc.text(`Shipping Address: ${order.shippingInfo?.address || 'N/A'}`);
+    doc.text(`Contact: ${order.shippingInfo?.contact || 'N/A'}`);
+    doc.moveDown();
+    
+    // Items table
+    doc.text('Items:', { underline: true });
+    doc.moveDown(0.5);
+    
+    let yPosition = doc.y;
+    order.items.forEach((item, index) => {
+      const productName = item.name || item.productId?.name || 'Unknown Product';
+      doc.text(`${index + 1}. ${productName}`, 50, yPosition);
+      doc.text(`${item.quantity} x ₹${item.price.toFixed(2)}`, 350, yPosition);
+      doc.text(`₹${(item.quantity * item.price).toFixed(2)}`, 450, yPosition);
+      yPosition += 20;
+    });
+    
+    doc.y = yPosition + 20;
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+    doc.moveDown();
+    
+    // Totals
+    doc.text(`Total Amount: ₹${order.totalAmount.toFixed(2)}`, { align: 'right' });
+    doc.moveDown();
+    doc.text(`Payment Status: ${order.paymentStatus}`, { align: 'right' });
+    doc.text(`Payment Method: ${order.paymentMethod}`, { align: 'right' });
+    doc.moveDown(2);
+    
+    // Footer
+    doc.fontSize(10).text('Thank you for your business!', { align: 'center' });
+    doc.text('For any questions, please contact support@fancy.com', { align: 'center' });
+    
+    // Finalize the PDF
+    doc.end();
+    
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate invoice",
+      error: error.message
+    });
+  }
+});
+
+// Add a new public invoice route that doesn't require authentication
+app.get("/api/public/orders/:orderId/invoice", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+    
+    const order = await Order.findById(orderId)
+      .populate("userId", "name email phone")
+      .populate("items.productId", "name");
+      
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${order._id}.pdf"`);
+    
+    // Generate PDF invoice
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument();
+    
+    // Pipe the PDF to the response
+    doc.pipe(res);
+    
+    // Add content to the PDF
+    doc.fontSize(20).text('INVOICE', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Order ID: ${order._id}`);
+    doc.text(`Date: ${new Date(order.orderDate).toLocaleDateString()}`);
+    doc.text(`Customer: ${order.userId?.name || 'N/A'}`);
+    doc.text(`Email: ${order.userId?.email || 'N/A'}`);
+    doc.text(`Phone: ${order.userId?.phone || 'N/A'}`);
+    doc.text(`Shipping Address: ${order.shippingInfo?.address || 'N/A'}`);
+    doc.text(`Contact: ${order.shippingInfo?.contact || 'N/A'}`);
+    doc.moveDown();
+    
+    // Items table
+    doc.text('Items:', { underline: true });
+    doc.moveDown(0.5);
+    
+    let yPosition = doc.y;
+    order.items.forEach((item, index) => {
+      const productName = item.name || item.productId?.name || 'Unknown Product';
+      doc.text(`${index + 1}. ${productName}`, 50, yPosition);
+      doc.text(`${item.quantity} x ₹${item.price.toFixed(2)}`, 350, yPosition);
+      doc.text(`₹${(item.quantity * item.price).toFixed(2)}`, 450, yPosition);
+      yPosition += 20;
+    });
+    
+    doc.y = yPosition + 20;
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+    doc.moveDown();
+    
+    // Totals
+    doc.text(`Total Amount: ₹${order.totalAmount.toFixed(2)}`, { align: 'right' });
+    doc.moveDown();
+    doc.text(`Payment Status: ${order.paymentStatus}`, { align: 'right' });
+    doc.text(`Payment Method: ${order.paymentMethod}`, { align: 'right' });
+    doc.moveDown(2);
+    
+    // Footer
+    doc.fontSize(10).text('Thank you for your business!', { align: 'center' });
+    doc.text('For any questions, please contact support@fancy.com', { align: 'center' });
+    
+    // Finalize the PDF
+    doc.end();
+    
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate invoice",
+      error: error.message
+    });
+  }
+});
 
 // Error Handling Middleware
 app.use((error, req, res, next) => {
