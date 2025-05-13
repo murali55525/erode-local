@@ -33,6 +33,29 @@ const loadRazorpay = () => {
   });
 };
 
+// Add this utility function at the top of your file, outside the component
+const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return '/images/default.jpg';
+  
+  // If it's already a full URL
+  if (imageUrl.startsWith('http')) {
+    return imageUrl;
+  }
+  
+  // If it includes /api/images/ path but doesn't have the base URL
+  if (imageUrl.includes('/api/images/')) {
+    return `https://render-1-ehkn.onrender.com${imageUrl}`;
+  }
+  
+  // If it's just an ID, construct the full URL
+  if (imageUrl.match(/^[a-f0-9]{24}$/)) {
+    return `https://render-1-ehkn.onrender.com/api/images/${imageUrl}`;
+  }
+  
+  // For any other relative path
+  return `https://render-1-ehkn.onrender.com${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+};
+
 const Cart = () => {
   const navigate = useNavigate();
   const { cart, removeFromCart, addToCart, updateQuantity, mergeCarts, refreshCart, isLoading: cartLoading } = useCart();
@@ -105,11 +128,11 @@ const Cart = () => {
       try {
         if (isLoggedIn) {
           const [wishlistRes, recRes, pointsRes] = await Promise.allSettled([
-            axios.get('http://localhost:5000/api/wishlist', {
+            axios.get('https://render-1-ehkn.onrender.com/api/wishlist', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { wishlist: [] }})),
-            axios.get('http://localhost:5000/api/recommendations').catch(() => ({ data: [] })),
-            axios.get('http://localhost:5000/api/loyalty-points', {
+            axios.get('https://render-1-ehkn.onrender.com/api/recommendations').catch(() => ({ data: [] })),
+            axios.get('https://render-1-ehkn.onrender.com/api/loyalty-points', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { points: 0 }}))
           ]);
@@ -118,7 +141,7 @@ const Cart = () => {
           setRecommendations((recRes.value?.data || []).slice(0, 4));
           setLoyaltyPoints(pointsRes.value?.data?.points || 0);
         } else {
-          const recRes = await axios.get('http://localhost:5000/api/recommendations')
+          const recRes = await axios.get('https://render-1-ehkn.onrender.com/api/recommendations')
             .catch(() => ({ data: [] }));
           setRecommendations((recRes.data || []).slice(0, 4));
         }
@@ -179,7 +202,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         await axios.post(
-          'http://localhost:5000/api/wishlist',
+          'https://render-1-ehkn.onrender.com/api/wishlist',
           { productId: item.productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -211,7 +234,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         const response = await axios.post(
-          `http://localhost:5000/api/wishlist`,
+          `https://render-1-ehkn.onrender.com/api/wishlist`,
           { productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -296,7 +319,7 @@ const Cart = () => {
 
       console.log('Creating order with data:', orderData);
 
-      const response = await fetch('http://localhost:5000/api/orders/create', {
+      const response = await fetch('https://render-1-ehkn.onrender.com/api/orders/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -327,7 +350,7 @@ const Cart = () => {
         },
         handler: async function(response) {
           try {
-            const verifyResponse = await fetch('http://localhost:5000/api/orders/verify', {
+            const verifyResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/verify', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -344,7 +367,7 @@ const Cart = () => {
             const verifyData = await verifyResponse.json();
 
             if (verifyData.success) {
-              const completeOrderResponse = await fetch('http://localhost:5000/api/orders/complete', {
+              const completeOrderResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/complete', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -402,7 +425,7 @@ const Cart = () => {
   // New helper function to complete order
   const completeOrder = async (orderId, paymentId) => {
     try {
-      const orderResponse = await fetch('http://localhost:5000/api/orders/complete', {
+      const orderResponse = await fetch('https://render-1-ehkn.onrender.com/api/orders/complete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -438,7 +461,7 @@ const Cart = () => {
 
   const fetchTrackingInfo = async (orderId) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/orders/track`, {
+      const response = await axios.get(`https://render-1-ehkn.onrender.com/api/orders/track`, {
         params: { orderId },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       }).catch(() => ({
@@ -479,28 +502,30 @@ const Cart = () => {
     <div className="matte-container">
       <div className="matte-content">
         <div className="matte-card">
-          {/* Header Steps */}
-          <div className="flex justify-between items-center p-6 bg-gradient-to-r from-[#234781] to-[#1e3a8a] mb-8">
-            <div className={`flex items-center px-4 py-2 rounded-md ${
-              step >= 1 
-                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
-                : 'text-white/70'
-            }`}>
-              <FaShoppingCart className="mr-2" /> Cart
-            </div>
-            <div className={`flex items-center px-4 py-2 rounded-md ${
-              step >= 2 
-                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
-                : 'text-white/70'
-            }`}>
-              <FaTruck className="mr-2" /> Shipping
-            </div>
-            <div className={`flex items-center px-4 py-2 rounded-md ${
-              step >= 3 
-                ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
-                : 'text-white/70'
-            }`}>
-              <FaCreditCard className="mr-2" /> Payment
+          {/* Header Steps - make scrollable on small screens */}
+          <div className="overflow-x-auto">
+            <div className="flex justify-between items-center p-4 sm:p-6 bg-gradient-to-r from-[#234781] to-[#1e3a8a] mb-4 sm:mb-8 min-w-[480px]">
+              <div className={`flex items-center px-3 sm:px-4 py-2 rounded-md ${
+                step >= 1 
+                  ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                  : 'text-white/70'
+              }`}>
+                <FaShoppingCart className="mr-2" /> Cart
+              </div>
+              <div className={`flex items-center px-3 sm:px-4 py-2 rounded-md ${
+                step >= 2 
+                  ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                  : 'text-white/70'
+              }`}>
+                <FaTruck className="mr-2" /> Shipping
+              </div>
+              <div className={`flex items-center px-3 sm:px-4 py-2 rounded-md ${
+                step >= 3 
+                  ? 'text-white bg-white/20 font-medium backdrop-blur-sm' 
+                  : 'text-white/70'
+              }`}>
+                <FaCreditCard className="mr-2" /> Payment
+              </div>
             </div>
           </div>
 
@@ -512,15 +537,15 @@ const Cart = () => {
           )}
 
           {/* Step 1: Cart Items */}
-          <div className={`p-8 ${step === 1 ? 'block' : 'hidden'}`}>
+          <div className={`p-4 sm:p-8 ${step === 1 ? 'block' : 'hidden'}`}>
             {step === 1 && (
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4 sm:gap-6">
                 {isLoggedIn && (
-                  <div className="flex items-center bg-[#234781]/10 px-4 py-3 rounded-lg font-medium mb-4 text-[#234781]">
+                  <div className="flex flex-wrap items-center bg-[#234781]/10 px-3 sm:px-4 py-3 rounded-lg font-medium mb-4 text-[#234781]">
                     <FaStar className="mr-2 text-[#234781]" /> Loyalty Points: {loyaltyPoints}
                     <button 
                       onClick={redeemPoints} 
-                      className="ml-auto bg-[#234781] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#1e3a8a] transition"
+                      className="ml-auto mt-2 w-full sm:w-auto sm:mt-0 bg-[#234781] text-white px-4 py-2 rounded-lg font-medium hover:bg-[#1e3a8a] transition"
                     >
                       Redeem
                     </button>
@@ -528,7 +553,7 @@ const Cart = () => {
                 )}
 
                 {cart.length === 0 ? (
-                  <p className="text-center py-12 text-gray-600 text-lg">
+                  <p className="text-center py-8 sm:py-12 text-gray-600 text-lg">
                     Your cart is empty.{' '}
                     <span onClick={() => navigate('/shop')} className="text-blue-600 underline font-medium cursor-pointer hover:text-blue-800">
                       Shop Now
@@ -538,7 +563,7 @@ const Cart = () => {
                   <>
                     <div className="flex flex-col gap-4">
                       {cart.map((item) => (
-                        <div key={item._id || item.productId} className="grid grid-cols-[auto_100px_1fr_auto] gap-4 p-5 rounded-xl bg-white/80 shadow-sm border border-[#234781]/10 hover:shadow-md transition items-center">
+                        <div key={item._id || item.productId} className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[auto_100px_1fr_auto] gap-2 sm:gap-4 p-3 sm:p-5 rounded-xl bg-white/80 shadow-sm border border-[#234781]/10 hover:shadow-md transition items-center">
                           <input
                             type="checkbox"
                             checked={selectedItems.includes(item._id || item.productId)}
@@ -546,93 +571,98 @@ const Cart = () => {
                             className="w-5 h-5 accent-blue-600 cursor-pointer"
                           />
                           <img
-                            src={
-                              item.imageUrl
-                                ? item.imageUrl.startsWith('http')
-                                  ? item.imageUrl
-                                  : `http://localhost:5000${item.imageUrl}`
-                                : '/images/default.jpg'
-                            }
+                            src={getImageUrl(item.imageUrl)}
                             alt={item.name}
-                            className="w-24 h-24 object-cover rounded-lg shadow-sm"
-                            onError={(e) => (e.target.src = '/images/default.jpg')}
+                            className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-lg shadow-sm"
+                            onError={(e) => {
+                              console.log(`Image failed to load: ${e.target.src}`);
+                              e.target.src = '/images/default.jpg';
+                              e.target.onerror = null; // Prevent infinite loop
+                            }}
                           />
-                          <div className="flex flex-col gap-2">
-                            <p className="font-semibold text-lg text-gray-800">{item.name}</p>
-                            <p className="font-semibold text-blue-600 text-lg">₹{item.price}</p>
+                          <div className="flex flex-col gap-1 sm:gap-2">
+                            <p className="font-semibold text-sm sm:text-lg text-gray-800 line-clamp-1">{item.name}</p>
+                            <p className="font-semibold text-blue-600 text-sm sm:text-lg">₹{item.price}</p>
                             {item.color && (
-                              <p className="text-gray-600 text-sm">Color: {item.color}</p>
+                              <p className="text-gray-600 text-xs sm:text-sm">Color: {item.color}</p>
                             )}
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 mt-1 sm:mt-2">
                               <button
                                 onClick={() => handleQuantityChange(item, -1)}
                                 disabled={item.quantity <= 1}
-                                className="w-8 h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Decrease quantity"
                               >
-                                <FaMinus />
+                                <FaMinus className="text-xs sm:text-sm" />
                               </button>
-                              <span className="font-medium w-8 text-center">{item.quantity}</span>
+                              <span className="font-medium w-6 sm:w-8 text-center text-sm sm:text-base">{item.quantity}</span>
                               <button
                                 onClick={() => handleQuantityChange(item, 1)}
                                 disabled={item.quantity >= (item.availableQuantity || 10)}
-                                className="w-8 h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Increase quantity"
                               >
-                                <FaPlus />
+                                <FaPlus className="text-xs sm:text-sm" />
                               </button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setShowQuickView(item)}
-                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition"
-                            >
-                              <FaEye />
-                            </button>
-                            <button
-                              onClick={() => saveForLater(item)}
-                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-yellow-600 hover:text-white transition"
-                            >
-                              <FaSave />
-                            </button>
-                            <button
-                              onClick={() => removeFromCart(item)}
-                              className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition"
-                            >
-                              <FaTrash />
-                            </button>
-                            <button
-                              onClick={() => toggleWishlistItem(item.productId)}
-                              className={`w-9 h-9 rounded-full flex items-center justify-center transition ${wishlist.includes(item.productId) ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600'}`}
-                            >
-                              <FaHeart />
-                            </button>
+                          
+                          {/* Action buttons - stack vertically on mobile */}
+                          <div className="flex sm:flex-row flex-col gap-2 col-span-3 sm:col-span-1 mt-3 sm:mt-0">
+                            <div className="flex gap-2 justify-center sm:justify-start">
+                              <button
+                                onClick={() => setShowQuickView(item)}
+                                className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition"
+                                aria-label="Quick view"
+                              >
+                                <FaEye />
+                              </button>
+                              <button
+                                onClick={() => saveForLater(item)}
+                                className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-yellow-600 hover:text-white transition"
+                                aria-label="Save for later"
+                              >
+                                <FaSave />
+                              </button>
+                            </div>
+                            <div className="flex gap-2 justify-center sm:justify-start">
+                              <button
+                                onClick={() => removeFromCart(item)}
+                                className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition"
+                                aria-label="Remove from cart"
+                              >
+                                <FaTrash />
+                              </button>
+                              <button
+                                onClick={() => toggleWishlistItem(item.productId)}
+                                className={`w-9 h-9 rounded-full flex items-center justify-center transition ${wishlist.includes(item.productId) ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600'}`}
+                                aria-label="Add to wishlist"
+                              >
+                                <FaHeart />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
 
+                    {/* Saved for Later section - adjust grid for mobile */}
                     {savedForLater.length > 0 && (
-                      <div className="mt-8">
-                        <h3 className="text-xl font-semibold text-gray-700 mb-4 pl-3 border-l-4 border-blue-600">Saved for Later</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <div className="mt-6 sm:mt-8">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-3 sm:mb-4 pl-3 border-l-4 border-blue-600">Saved for Later</h3>
+                        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                           {savedForLater.map((item) => (
-                            <div key={item._id || item.productId} className="flex flex-col items-center p-4 rounded-lg bg-gray-50 border border-gray-200">
+                            <div key={item._id || item.productId} className="flex flex-col items-center p-3 sm:p-4 rounded-lg bg-gray-50 border border-gray-200">
                               <img
-                                src={
-                                  item.imageUrl
-                                    ? item.imageUrl.startsWith('http')
-                                      ? item.imageUrl
-                                      : `http://localhost:5000${item.imageUrl}`
-                                    : '/images/default.jpg'
-                                }
+                                src={getImageUrl(item.imageUrl)}
                                 alt={item.name}
-                                className="w-24 h-24 object-cover rounded-lg mb-3"
+                                className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-lg mb-2 sm:mb-3"
                                 onError={(e) => (e.target.src = '/images/default.jpg')}
                               />
-                              <p className="font-medium text-center mb-3">{item.name}</p>
+                              <p className="font-medium text-center text-sm mb-2 sm:mb-3 line-clamp-2">{item.name}</p>
                               <button 
                                 onClick={() => moveToCart(item)}
-                                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+                                className="w-full bg-blue-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-blue-700 transition text-sm"
                               >
                                 Move to Cart
                               </button>
@@ -643,25 +673,25 @@ const Cart = () => {
                     )}
 
                     {/* Summary Card */}
-                    <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-md border border-[#234781]/10 mt-6">
-                      <div className="space-y-3">
-                        <p className="flex justify-between pb-2 border-b border-gray-200">Subtotal: <span>₹{totalAmount}</span></p>
-                        <p className="flex justify-between pb-2 border-b border-gray-200">Discount: <span>₹{discount}</span></p>
-                        <p className="flex justify-between pb-2 border-b border-gray-200">Delivery: <span>₹{deliveryCharge}</span></p>
-                        <p className="flex justify-between pb-2 border-b border-gray-200">Gift Wrapping: <span>₹{giftCharge}</span></p>
-                        <p className="flex justify-between pt-2 font-bold text-xl text-blue-600">Total: <span>₹{finalAmount}</span></p>
+                    <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-xl shadow-md border border-[#234781]/10 mt-4 sm:mt-6">
+                      <div className="space-y-2 sm:space-y-3">
+                        <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Subtotal: <span>₹{totalAmount}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Discount: <span>₹{discount}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Delivery: <span>₹{deliveryCharge}</span></p>
+                        <p className="flex justify-between pb-2 border-b border-gray-200 text-sm sm:text-base">Gift Wrapping: <span>₹{giftCharge}</span></p>
+                        <p className="flex justify-between pt-2 font-bold text-lg sm:text-xl text-blue-600">Total: <span>₹{finalAmount}</span></p>
                       </div>
-                      <div className="flex gap-2 mt-6">
+                      <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-6">
                         <input
                           type="text"
                           placeholder="Enter Coupon Code"
                           value={couponCode}
                           onChange={(e) => setCouponCode(e.target.value)}
-                          className="matte-input px-4 py-3 w-full"
+                          className="matte-input px-3 sm:px-4 py-2 sm:py-3 w-full"
                         />
                         <button
                           onClick={applyCoupon}
-                          className="matte-button px-6 py-3 w-full"
+                          className="matte-button px-4 sm:px-6 py-2 sm:py-3 w-full sm:w-auto whitespace-nowrap"
                           disabled={promoApplied}
                         >
                           Apply
@@ -669,7 +699,7 @@ const Cart = () => {
                       </div>
                       <button
                         onClick={() => setStep(2)}
-                        className={`w-full mt-6 bg-[#234781] text-white px-6 py-4 rounded-lg font-semibold text-lg hover:bg-[#1e3a8a] transition hover:-translate-y-1 shadow-lg ${
+                        className={`w-full mt-4 sm:mt-6 bg-[#234781] text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-[#1e3a8a] transition hover:-translate-y-1 shadow-lg ${
                           selectedItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                         disabled={selectedItems.length === 0}
@@ -678,21 +708,15 @@ const Cart = () => {
                       </button>
                     </div>
 
-                    {/* Recommendations */}
+                    {/* Recommendations - adjust grid for mobile */}
                     {recommendations.length > 0 && (
-                      <div className="mt-10">
-                        <h3 className="text-xl font-semibold text-gray-700 mb-6 pl-3 border-l-4 border-blue-600">You Might Also Like</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                      <div className="mt-8 sm:mt-10">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-4 sm:mb-6 pl-3 border-l-4 border-blue-600">You Might Also Like</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                           {recommendations.map((item) => (
                             <div key={item._id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition border border-gray-200 flex flex-col">
                               <img
-                                src={
-                                  item.imageUrl
-                                    ? item.imageUrl.startsWith('http')
-                                      ? item.imageUrl
-                                      : `http://localhost:5000${item.imageUrl}`
-                                    : '/images/default.jpg'
-                                }
+                                src={getImageUrl(item.imageUrl)}
                                 alt={item.name}
                                 className="w-full h-40 object-cover"
                                 onError={(e) => (e.target.src = '/images/default.jpg')}
@@ -726,9 +750,9 @@ const Cart = () => {
 
           {/* Step 2: Shipping Details */}
           {step === 2 && (
-            <div className="p-8">
+            <div className="p-4 sm:p-8">
               <div className="max-w-2xl mx-auto">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-8 text-center">Shipping Details</h2>
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-6 sm:mb-8 text-center">Shipping Details</h2>
                 {['name', 'address', 'city', 'postalCode', 'contact'].map((field) => (
                   <input
                     key={field}
@@ -748,72 +772,11 @@ const Cart = () => {
                     required
                   />
                 ))}
-                <div className="flex flex-col gap-3 my-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <label className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer border border-gray-200 hover:bg-blue-50 transition">
-                    <input
-                      type="radio"
-                      value="normal"
-                      checked={deliveryType === 'normal'}
-                      onChange={() => setDeliveryType('normal')}
-                      className="w-5 h-5 accent-blue-600"
-                    />
-                    <span>Normal (₹20, Est. {calculateDeliveryDate()})</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer border border-gray-200 hover:bg-blue-50 transition">
-                    <input
-                      type="radio"
-                      value="express"
-                      checked={deliveryType === 'express'}
-                      onChange={() => setDeliveryType('express')}
-                      className="w-5 h-5 accent-blue-600"
-                    />
-                    <span>Express (₹50, Est. {calculateDeliveryDate()})</span>
-                  </label>
-                </div>
-                <div className="my-6 p-4 bg-red-50 rounded-lg border border-red-200">
-                  <label className="flex items-center gap-3 font-medium text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={giftOptions.wrapping}
-                      onChange={(e) =>
-                        setGiftOptions({
-                          ...giftOptions,
-                          wrapping: e.target.checked,
-                        })
-                      }
-                      className="w-5 h-5 accent-red-600"
-                    />
-                    Add Gift Wrapping (+₹50)
-                  </label>
-                  {giftOptions.wrapping && (
-                    <textarea
-                      placeholder="Gift Message"
-                      value={giftOptions.message}
-                      onChange={(e) =>
-                        setGiftOptions({
-                          ...giftOptions,
-                          message: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg mt-3 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent min-h-[100px]"
-                    />
-                  )}
-                </div>
-                <textarea
-                  placeholder="Order Notes"
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[100px]"
-                />
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 my-6">
-                  <p className="font-medium mb-2">Estimated Delivery: {calculateDeliveryDate()}</p>
-                  <p className="font-bold text-blue-600 text-xl">Total: ₹{finalAmount}</p>
-                </div>
-                <div className="flex gap-4 mt-8">
-                  <button onClick={() => setStep(1)} className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+                <div className="flex flex-col sm:flex-row gap-4 mt-6 sm:mt-8">
+                  <button onClick={() => setStep(1)} className="flex-1 bg-gray-200 text-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
                     Back
                   </button>
-                  <button onClick={handlePayment} className="flex-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                  <button onClick={handlePayment} className="flex-2 bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
                     Proceed to Payment
                   </button>
                 </div>
@@ -823,13 +786,13 @@ const Cart = () => {
 
           {/* Step 3: Payment Confirmation */}
           {step === 3 && (
-            <div className="p-8">
-              <div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md text-center">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-6">Payment</h2>
-                <p className="text-3xl font-bold text-blue-600 mb-8">Final Amount: ₹{finalAmount}</p>
+            <div className="p-4 sm:p-8">
+              <div className="max-w-md mx-auto bg-white p-4 sm:p-8 rounded-xl shadow-md text-center">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6">Payment</h2>
+                <p className="text-2xl sm:text-3xl font-bold text-blue-600 mb-6 sm:mb-8">Final Amount: ₹{finalAmount}</p>
                 <button 
                   onClick={handlePayment} 
-                  className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition hover:-translate-y-1 shadow-lg"
+                  className="w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg hover:bg-green-700 transition hover:-translate-y-1 shadow-lg"
                 >
                   Confirm Order (Pay on Delivery)
                 </button>
@@ -863,13 +826,7 @@ const Cart = () => {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white p-8 rounded-xl relative w-full max-w-md max-h-[80vh] overflow-y-auto flex flex-col items-center gap-4">
                 <img
-                  src={
-                    showQuickView.imageUrl
-                      ? showQuickView.imageUrl.startsWith('http')
-                        ? showQuickView.imageUrl
-                        : `http://localhost:5000${showQuickView.imageUrl}`
-                      : '/images/default.jpg'
-                  }
+                  src={getImageUrl(showQuickView.imageUrl)}
                   alt={showQuickView.name}
                   className="w-48 h-48 object-cover rounded-lg"
                   onError={(e) => (e.target.src = '/images/default.jpg')}

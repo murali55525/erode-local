@@ -105,6 +105,7 @@ const SocialLoginContainer = styled.div`
   }
 `;
 
+// Add CustomAlert function component definition
 function CustomAlert({ message, type, onClose }) {
   return (
     <AlertContainer type={type}>
@@ -114,6 +115,144 @@ function CustomAlert({ message, type, onClose }) {
   );
 }
 
+// Add these responsive styles
+const CenteredContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: #f9fafc;
+`;
+
+const Container = styled.div`
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 768px;
+  min-height: 480px;
+  font-family: "Poppins", sans-serif;
+
+  @media (max-width: 768px) {
+    min-height: auto;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+  }
+`;
+
+const SignUpContainer = styled.div`
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: all 0.6s ease-in-out;
+  left: 0;
+  width: 50%;
+  opacity: 0;
+  z-index: 1;
+  ${props =>
+    props.signinIn !== true
+      ? `
+    transform: translateX(100%);
+    opacity: 1;
+    z-index: 5;
+  `
+      : null}
+
+  @media (max-width: 768px) {
+    width: 100%;
+    position: relative;
+    opacity: ${props => (props.signinIn !== true ? 1 : 0)};
+    display: ${props => (props.signinIn !== true ? "block" : "none")};
+    transform: translateX(0);
+  }
+`;
+
+const SignInContainer = styled.div`
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: all 0.6s ease-in-out;
+  left: 0;
+  width: 50%;
+  z-index: 2;
+  ${props => (props.signinIn !== true ? `transform: translateX(100%);` : null)}
+
+  @media (max-width: 768px) {
+    width: 100%;
+    position: relative;
+    opacity: ${props => (props.signinIn === true ? 1 : 0)};
+    display: ${props => (props.signinIn === true ? "block" : "none")};
+    transform: translateX(0);
+  }
+`;
+
+const Form = styled.form`
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 0 50px;
+  height: 100%;
+  text-align: center;
+
+  @media (max-width: 768px) {
+    padding: 30px 20px;
+  }
+`;
+
+const OverlayContainer = styled.div`
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.6s ease-in-out;
+  z-index: 100;
+  ${props =>
+    props.signinIn !== true ? `transform: translateX(-100%);` : null}
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+// Add mobile tab controls
+const MobileTabControls = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: flex;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+`;
+
+const MobileTabButton = styled.button`
+  flex: 1;
+  padding: 10px;
+  background: ${props => props.active ? "#4169e1" : "#f2f3f7"};
+  color: ${props => props.active ? "#fff" : "#333"};
+  border: none;
+  font-family: "Poppins", sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:first-child {
+    border-radius: 5px 0 0 5px;
+  }
+  
+  &:last-child {
+    border-radius: 0 5px 5px 0;
+  }
+`;
+
+// Update function components to use mobile tab controls
 function Login({ onLoginSuccess }) {
   const navigate = useNavigate();
   const [signIn, toggle] = useState(true);
@@ -177,7 +316,7 @@ function Login({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/signup", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -198,7 +337,7 @@ function Login({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -240,7 +379,7 @@ function Login({ onLoginSuccess }) {
         throw new Error('No credential received from Google');
       }
 
-      const response = await fetch("http://localhost:5000/api/auth/google", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/google", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -296,6 +435,22 @@ function Login({ onLoginSuccess }) {
       )}
       <Components.CenteredContainer>
         <Components.Container>
+          {/* Add mobile tab controls */}
+          <MobileTabControls>
+            <MobileTabButton 
+              active={signIn} 
+              onClick={() => toggle(true)}
+            >
+              Sign In
+            </MobileTabButton>
+            <MobileTabButton 
+              active={!signIn} 
+              onClick={() => toggle(false)}
+            >
+              Sign Up
+            </MobileTabButton>
+          </MobileTabControls>
+          
           <Components.SignUpContainer signinIn={signIn}>
             <Components.Form onSubmit={handleSignUp}>
               <Components.Title>Create Account</Components.Title>

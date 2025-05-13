@@ -4,8 +4,8 @@ import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../features/auth/authSlice";
 import { FaUser, FaSignOutAlt, FaUserCircle, FaShoppingCart } from "react-icons/fa";
 
-const API_BASE_URL = "http://localhost:5000";
-const CART_API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = "https://render-1-ehkn.onrender.com";
+const CART_API_BASE_URL = "https://render-1-ehkn.onrender.com";
 
 const Navbar = () => {
   const dispatch = useDispatch();

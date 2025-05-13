@@ -65,7 +65,7 @@ const getAIResponse = async (message, previousMessages = []) => {
   if (matchedCategory) {
     try {
       const category = matchedCategory[1].category;
-      const response = await axios.get(`http://localhost:5000/api/products?category=${category}`);
+      const response = await axios.get(`https://render-1-ehkn.onrender.com/api/products?category=${category}`);
       const products = response.data.filter(p => p.category === category).slice(0, 3);
 
       if (products.length === 0) {
@@ -269,7 +269,7 @@ const ChatAssistant = () => {
                     <div key={idx} className="bg-white rounded-lg p-3 shadow-md hover:shadow-lg transition-shadow">
                       {product.imageId && (
                         <img
-                          src={`http://localhost:5000/api/images/${product.imageId}`}
+                          src={`https://render-1-ehkn.onrender.com/api/images/${product.imageId}`}
                           alt={product.name}
                           className="w-full h-32 object-cover rounded-lg mb-2"
                           onError={(e) => {

@@ -1,13 +1,18 @@
 body, html {
   height: 100%;
-  overflow-y: auto; /* Ensure vertical scrolling is enabled */
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .App {
   text-align: center;
-  min-height: 100vh; /* Ensure the app container takes full height */
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
 .App-logo {
@@ -42,5 +47,75 @@ body, html {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Responsive container for all content sections */
+.content-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+/* Responsive grid system */
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Mobile-first media queries */
+@media screen and (max-width: 768px) {
+  .responsive-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  
+  .hidden-mobile {
+    display: none !important;
+  }
+  
+  .mobile-full-width {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    box-sizing: border-box !important;
+  }
+  
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+  
+  /* Increase touch target sizes on mobile */
+  button, 
+  .button, 
+  a.button, 
+  input[type="submit"], 
+  input[type="button"],
+  .nav-link,
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 15px;
+    touch-action: manipulation;
+  }
+}
+
+/* Medium screens */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+  .tablet-only {
+    display: block;
+  }
+}
+
+/* For any screen in landscape orientation */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .adjust-for-landscape {
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 }
