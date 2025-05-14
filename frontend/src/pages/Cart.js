@@ -44,16 +44,16 @@ const getImageUrl = (imageUrl) => {
   
   // If it includes /api/images/ path but doesn't have the base URL
   if (imageUrl.includes('/api/images/')) {
-    return `http://localhost:5000${imageUrl}`;
+    return `https://render-1-ehkn.onrender.com${imageUrl}`;
   }
   
   // If it's just an ID, construct the full URL
   if (imageUrl.match(/^[a-f0-9]{24}$/)) {
-    return `http://localhost:5000/api/images/${imageUrl}`;
+    return `https://render-1-ehkn.onrender.com/api/images/${imageUrl}`;
   }
   
   // For any other relative path
-  return `http://localhost:5000${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+  return `https://render-1-ehkn.onrender.com${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
 };
 
 const Cart = () => {
@@ -128,11 +128,11 @@ const Cart = () => {
       try {
         if (isLoggedIn) {
           const [wishlistRes, recRes, pointsRes] = await Promise.allSettled([
-            axios.get('http://localhost:5000/api/wishlist', {
+            axios.get('https://render-1-ehkn.onrender.com/api/wishlist', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { wishlist: [] }})),
-            axios.get('http://localhost:5000/api/recommendations').catch(() => ({ data: [] })),
-            axios.get('http://localhost:5000/api/loyalty-points', {
+            axios.get('https://render-1-ehkn.onrender.com/api/recommendations').catch(() => ({ data: [] })),
+            axios.get('https://render-1-ehkn.onrender.com/api/loyalty-points', {
               headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             }).catch(() => ({ data: { points: 0 }}))
           ]);
@@ -141,7 +141,7 @@ const Cart = () => {
           setRecommendations((recRes.value?.data || []).slice(0, 4));
           setLoyaltyPoints(pointsRes.value?.data?.points || 0);
         } else {
-          const recRes = await axios.get('http://localhost:5000/api/recommendations')
+          const recRes = await axios.get('https://render-1-ehkn.onrender.com/api/recommendations')
             .catch(() => ({ data: [] }));
           setRecommendations((recRes.data || []).slice(0, 4));
         }
@@ -202,7 +202,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         await axios.post(
-          'http://localhost:5000/api/wishlist',
+          'https://render-1-ehkn.onrender.com/api/wishlist',
           { productId: item.productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -234,7 +234,7 @@ const Cart = () => {
     try {
       if (isLoggedIn) {
         const response = await axios.post(
-          `http://localhost:5000/api/wishlist`,
+          `https://render-1-ehkn.onrender.com/api/wishlist`,
           { productId },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -340,7 +340,7 @@ const Cart = () => {
       try {
         // Use axios instead of fetch to better handle certificate issues
         const response = await axios.post(
-          'http://localhost:5000/api/orders/create', 
+          'https://render-1-ehkn.onrender.com/api/orders/create', 
           orderData,
           {
             headers: {
@@ -380,7 +380,7 @@ const Cart = () => {
               
               // Use axios for verification
               const verifyResponse = await axios.post(
-                'http://localhost:5000/api/orders/verify', 
+                'https://render-1-ehkn.onrender.com/api/orders/verify', 
                 {
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
@@ -401,7 +401,7 @@ const Cart = () => {
               if (verifyData.success) {
                 // Use axios for order completion
                 const completeOrderResponse = await axios.post(
-                  'http://localhost:5000/api/orders/complete',
+                  'https://render-1-ehkn.onrender.com/api/orders/complete',
                   {
                     orderId: response.razorpay_order_id,
                     items: selectedCartItems,
@@ -535,7 +535,7 @@ const Cart = () => {
   const completeOrder = async (orderId, paymentId) => {
     try {
       const orderResponse = await axios.post(
-        'http://localhost:5000/api/orders/complete',
+        'https://render-1-ehkn.onrender.com/api/orders/complete',
         {
           orderId,
           items: cart.filter(item => selectedItems.includes(item._id || item.productId)),
@@ -585,7 +585,7 @@ const Cart = () => {
       // Create a COD order directly using axios instead of fetch
       try {
         const response = await axios.post(
-          'http://localhost:5000/api/orders/cod',
+          'https://render-1-ehkn.onrender.com/api/orders/cod',
           {
             items: selectedCartItems.map(item => ({
               productId: item.productId || item._id,
@@ -643,7 +643,7 @@ const Cart = () => {
 
   const fetchTrackingInfo = async (orderId) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/orders/track`, {
+      const response = await axios.get(`https://render-1-ehkn.onrender.com/api/orders/track`, {
         params: { orderId },
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       }).catch(() => ({

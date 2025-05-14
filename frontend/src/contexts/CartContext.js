@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 
 const CartContext = createContext();
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'https://render-1-ehkn.onrender.com';
 
 export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState([]);

@@ -31,8 +31,8 @@ import { updateUser } from "../features/auth/authSlice"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
-const API_BASE_URL = "http://localhost:5000" // For orders and other data
-const IMAGE_API_URL = "http://localhost:5000" // For product images
+const API_BASE_URL = "https://render-1-ehkn.onrender.com" // For orders and other data
+const IMAGE_API_URL = "https://render-1-ehkn.onrender.com" // For product images
 
 const Profile = () => {
   const dispatch = useDispatch()

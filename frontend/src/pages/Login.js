@@ -20,24 +20,24 @@ const AlertContainer = styled.div`
   background: rgba(65, 105, 225, 0.9);
   backdrop-filter: blur(10px);
   border-radius: 12px;
-  padding: 20px 30px;
+  padding: 15px 20px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   color: white;
   font-family: "Poppins", sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   z-index: 1000;
   animation: ${fadeIn} 0.3s ease-out;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  max-width: 90%;
+  max-width: 85%;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
 
   @media (max-width: 480px) {
-    font-size: 14px;
-    padding: 15px 20px;
-    max-width: 80%;
+    font-size: 13px;
+    padding: 12px 15px;
+    max-width: 85%;
   }
 `;
 
@@ -93,7 +93,7 @@ const CheckboxLabel = styled.label`
 `;
 
 const SocialLoginContainer = styled.div`
-  margin-top: 20px;
+  margin-top: 15px;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -102,6 +102,7 @@ const SocialLoginContainer = styled.div`
     flex-direction: column;
     align-items: center;
     gap: 10px;
+    margin-top: 10px;
   }
 `;
 
@@ -121,9 +122,13 @@ const CenteredContainer = styled.div`
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 20px;
+  padding: 15px;
   box-sizing: border-box;
   background-color: #f9fafc;
+  
+  @media (max-width: 480px) {
+    padding: 10px;
+  }
 `;
 
 const Container = styled.div`
@@ -200,7 +205,11 @@ const Form = styled.form`
   text-align: center;
 
   @media (max-width: 768px) {
-    padding: 30px 20px;
+    padding: 20px 15px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 15px 10px;
   }
 `;
 
@@ -229,12 +238,13 @@ const MobileTabControls = styled.div`
     display: flex;
     width: 100%;
     margin-bottom: 20px;
+    padding: 0 10px;
   }
 `;
 
 const MobileTabButton = styled.button`
   flex: 1;
-  padding: 10px;
+  padding: 12px 10px;
   background: ${props => props.active ? "#4169e1" : "#f2f3f7"};
   color: ${props => props.active ? "#fff" : "#333"};
   border: none;
@@ -242,6 +252,7 @@ const MobileTabButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-size: 14px;
   
   &:first-child {
     border-radius: 5px 0 0 5px;
@@ -316,7 +327,7 @@ function Login({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/signup", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -337,7 +348,7 @@ function Login({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -379,7 +390,7 @@ function Login({ onLoginSuccess }) {
         throw new Error('No credential received from Google');
       }
 
-      const response = await fetch("http://localhost:5000/api/auth/google", {
+      const response = await fetch("https://render-1-ehkn.onrender.com/api/auth/google", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

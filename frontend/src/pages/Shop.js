@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 
 // Use a single API base URL for all requests including images
-const API_BASE_URL = "http://localhost:5000"
+const API_BASE_URL = "https://render-1-ehkn.onrender.com"
 
 // Map category icons with Lucide icons (normalized to match backend)
 const CATEGORY_ICONS = {
@@ -384,8 +384,8 @@ const Shop = () => {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Search and Filter Bar */}
-        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8 border border-blue-100">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-4 sm:mb-8 border border-blue-100">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
             {/* Search bar */}
             <div className="relative flex-1 w-full">
               <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-0">
@@ -396,13 +396,13 @@ const Shop = () => {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && handleTextSearch()}
-                    className="w-full pl-10 pr-4 py-3 border border-blue-200 rounded-lg sm:rounded-l-xl sm:rounded-r-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-2 sm:py-3 border border-blue-200 rounded-lg sm:rounded-l-xl sm:rounded-r-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
                   />
-                  <Search className="absolute left-3 top-3.5 h-5 w-5 text-blue-400" />
+                  <Search className="absolute left-3 top-3 h-4 sm:h-5 w-4 sm:w-5 text-blue-400" />
                 </div>
                 <button
                   onClick={handleTextSearch}
-                  className="bg-blue-700 hover:bg-blue-800 text-white font-medium py-3 px-6 rounded-lg sm:rounded-l-none sm:rounded-r-xl transition-colors w-full sm:w-auto"
+                  className="bg-blue-700 hover:bg-blue-800 text-white font-medium py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-l-none sm:rounded-r-xl transition-colors w-full sm:w-auto"
                 >
                   Search
                 </button>
@@ -410,16 +410,16 @@ const Shop = () => {
             </div>
 
             {/* Action buttons */}
-            <div className="flex space-x-3 w-full sm:w-auto justify-center sm:justify-start mt-3 sm:mt-0">
+            <div className="flex space-x-2 sm:space-x-3 w-full sm:w-auto justify-center sm:justify-start mt-2 sm:mt-0">
               <button
                 onClick={handleVoiceSearch}
-                className="bg-blue-50 hover:bg-blue-100 p-3 rounded-full transition-colors text-blue-700"
+                className="bg-blue-50 hover:bg-blue-100 p-2 sm:p-3 rounded-full transition-colors text-blue-700"
                 title="Voice Search"
               >
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
-              <label className="bg-blue-50 hover:bg-blue-100 p-3 rounded-full cursor-pointer transition-colors text-blue-700">
-                <Camera className="h-5 w-5" />
+              <label className="bg-blue-50 hover:bg-blue-100 p-2 sm:p-3 rounded-full cursor-pointer transition-colors text-blue-700">
+                <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
                 <input
                   type="file"
                   accept="image/*"
@@ -429,17 +429,17 @@ const Shop = () => {
               </label>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`p-3 rounded-full transition-colors ${
+                className={`p-2 sm:p-3 rounded-full transition-colors ${
                   showFilters ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
                 }`}
               >
-                <Filter className="h-5 w-5" />
+                <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
           </div>
 
           {/* Filter Controls */}
-          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 ${showFilters ? "block" : "hidden"}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 ${showFilters ? "block" : "hidden"}`}>
             {/* Sort Options */}
             <div className="p-4 sm:p-5 bg-blue-50 rounded-xl border border-blue-100">
               <h3 className="font-medium text-blue-800 mb-3 flex items-center">
@@ -575,23 +575,23 @@ const Shop = () => {
         )}
 
         {/* All Categories Carousel with improved styling */}
-        <div id="all-categories" className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8 border border-blue-100">
-          <h2 className="text-xl font-bold text-blue-900 mb-4">Browse All Categories</h2>
-          <div className="flex space-x-2 sm:space-x-4 pb-2 overflow-x-auto scrollbar-hide">
+        <div id="all-categories" className="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-4 sm:mb-8 border border-blue-100">
+          <h2 className="text-lg sm:text-xl font-bold text-blue-900 mb-3 sm:mb-4">Browse All Categories</h2>
+          <div className="flex space-x-2 pb-2 overflow-x-auto scrollbar-hide">
             {ALL_CATEGORIES.map(({ name, Icon }) => (
               <button
                 key={name}
                 onClick={() => handleCategoryClick(name)}
-                className={`flex flex-col items-center p-3 sm:p-4 min-w-[100px] sm:min-w-[120px] rounded-xl transition-all ${
+                className={`flex flex-col items-center p-2 sm:p-4 min-w-[80px] sm:min-w-[120px] rounded-xl transition-all ${
                   activeCategory === name
                     ? "bg-blue-600 text-white shadow-md"
                     : "bg-blue-50 hover:bg-blue-100 text-blue-800"
                 }`}
               >
-                <div className={`p-2 sm:p-3 rounded-full ${activeCategory === name ? "bg-white bg-opacity-20" : "bg-white"}`}>
-                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${activeCategory === name ? "text-white" : "text-blue-600"}`} />
+                <div className={`p-1.5 sm:p-3 rounded-full ${activeCategory === name ? "bg-white bg-opacity-20" : "bg-white"}`}>
+                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${activeCategory === name ? "text-white" : "text-blue-600"}`} />
                 </div>
-                <span className="mt-2 text-xs sm:text-sm font-medium truncate">{name}</span>
+                <span className="mt-1 sm:mt-2 text-xs sm:text-sm font-medium truncate">{name}</span>
               </button>
             ))}
           </div>
@@ -613,7 +613,7 @@ const Shop = () => {
         )}
 
         {/* Product Grid with enhanced styling */}
-        <div id="products-section" className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+        <div id="products-section" className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6">
           {filteredProducts.map((product) => (
             <div
               key={product._id}
@@ -623,7 +623,7 @@ const Shop = () => {
               onTouchStart={() => setHoveredProductId(product._id)}
               onTouchEnd={() => setTimeout(() => setHoveredProductId(null), 1000)}
             >
-              <div className="relative h-48 sm:h-64 overflow-hidden">
+              <div className="relative h-36 sm:h-48 md:h-64 overflow-hidden">
                 {product.imageId ? (
                   <img
                     src={`${API_BASE_URL}/api/images/${product.imageId}`}
@@ -637,7 +637,7 @@ const Shop = () => {
                     loading="lazy"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-500">
+                  <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-500 text-xs sm:text-base">
                     No Image Available
                   </div>
                 )}
@@ -647,11 +647,11 @@ const Shop = () => {
                     e.stopPropagation()
                     toggleWishlistItem(product._id)
                   }}
-                  className="absolute top-3 right-3 p-2 rounded-full bg-white bg-opacity-90 hover:bg-opacity-100 transition-colors shadow-md"
+                  className="absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full bg-white bg-opacity-90 hover:bg-opacity-100 transition-colors shadow-md"
                   aria-label="Add to wishlist"
                 >
                   <Heart
-                    className={`h-5 w-5 ${
+                    className={`h-3 w-3 sm:h-5 sm:w-5 ${
                       wishlist.includes(product._id) ? "fill-red-500 text-red-500" : "text-blue-600"
                     }`}
                   />
@@ -659,44 +659,44 @@ const Shop = () => {
 
                 {/* Category tag */}
                 {product.category && (
-                  <div className="absolute top-3 left-3">
-                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">{product.category}</span>
+                  <div className="absolute top-2 sm:top-3 left-2 sm:left-3">
+                    <span className="bg-blue-600 text-white text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs">{product.category}</span>
                   </div>
                 )}
 
                 {/* Quick add to cart button - always visible on mobile */}
                 <div
-                  className={`absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-blue-900 to-transparent text-white transform transition-transform duration-300 ${
+                  className={`absolute bottom-0 left-0 right-0 p-2 sm:p-3 bg-gradient-to-t from-blue-900 to-transparent text-white transform transition-transform duration-300 ${
                     hoveredProductId === product._id || window.innerWidth < 640 ? "translate-y-0" : "translate-y-full"
                   }`}
                 >
                   <button
                     onClick={() => handleAddToCart(product)}
-                    className="w-full py-2 bg-white text-blue-700 hover:bg-blue-50 font-medium rounded-lg flex items-center justify-center transition-colors"
+                    className="w-full py-1.5 sm:py-2 bg-white text-blue-700 hover:bg-blue-50 font-medium rounded-lg flex items-center justify-center transition-colors text-xs sm:text-sm"
                   >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Quick Add
                   </button>
                 </div>
               </div>
-              <div className="p-3 sm:p-4">
-                <h3 className="font-medium text-blue-900 truncate text-sm sm:text-base">{product.name}</h3>
-                <div className="flex items-center mt-1 mb-2">
+              <div className="p-2 sm:p-4">
+                <h3 className="font-medium text-blue-900 truncate text-xs sm:text-base">{product.name}</h3>
+                <div className="flex items-center mt-0.5 sm:mt-1 mb-1 sm:mb-2">
                   <div className="flex">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className={`h-3 w-3 sm:h-4 sm:w-4 ${i < 3 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                        className={`h-2 w-2 sm:h-4 sm:w-4 ${i < 3 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
                       />
                     ))}
                   </div>
-                  <span className="text-xs text-gray-500 ml-1">(12)</span>
+                  <span className="text-[10px] sm:text-xs text-gray-500 ml-1">(12)</span>
                 </div>
-                <div className="flex justify-between items-center mt-2">
-                  <p className="text-base sm:text-lg font-bold text-blue-700">₹{product.price}</p>
+                <div className="flex justify-between items-center mt-1 sm:mt-2">
+                  <p className="text-sm sm:text-lg font-bold text-blue-700">₹{product.price}</p>
                   <button
                     onClick={() => openModal(product)}
-                    className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                    className="text-[10px] sm:text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
                   >
                     View Details
                   </button>
@@ -728,16 +728,16 @@ const Shop = () => {
 
       {/* Product Details Modal with enhanced styling */}
       {showModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="flex justify-between items-center border-b p-3 sm:p-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-blue-900 truncate">{selectedProduct.name}</h2>
-              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700 p-2" aria-label="Close">
-                <X className="h-5 w-5 sm:h-6 sm:w-6" />
+            <div className="flex justify-between items-center border-b p-2 sm:p-4">
+              <h2 className="text-base sm:text-xl font-semibold text-blue-900 truncate">{selectedProduct.name}</h2>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700 p-1 sm:p-2" aria-label="Close">
+                <X className="h-4 w-4 sm:h-6 sm:w-6" />
               </button>
             </div>
             <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid md:grid-cols-2 gap-4 sm:gap-8 p-4 sm:p-6">
+              <div className="grid md:grid-cols-2 gap-3 sm:gap-8 p-3 sm:p-6">
                 {/* Product Image */}
                 <div className="flex items-center justify-center bg-blue-50 rounded-xl overflow-hidden">
                   {selectedProduct.imageId ? (

@@ -338,10 +338,10 @@ const HomePage = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {[
             { name: 'Lipstick', icon: 'Sparkles', image: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=500&q=60' },
-            { name: 'Nail Polish', icon: 'Palette', image: 'https://images.unsplash.com/photo-1607779097040-26e80aa4489f?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Nail Polish', icon: 'Palette', image: 'https://images.unsplash.com/photo-1506668651353-70a0e49a8760?auto=format&fit=crop&w=500&q=60', fallbackImage: 'https://images.unsplash.com/photo-1577304394227-ad629df38b91?auto=format&fit=crop&w=500&q=60', secondFallback: 'https://images.pexels.com/photos/2395231/pexels-photo-2395231.jpeg?auto=compress&cs=tinysrgb&w=500' },
             { name: 'Perfumes', icon: 'Droplet', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=500&q=60' },
-            { name: 'Necklace', icon: 'Gem', image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=500&q=60' },
-            { name: 'Bangles', icon: 'Gem', image: 'https://images.unsplash.com/photo-1535632787501-702f5e590c25?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Necklace', icon: 'Gem', image: 'https://images.unsplash.com/photo-1611085583191-a3b181a88401?auto=format&fit=crop&w=500&q=60', fallbackImage: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=500&q=60' },
+            { name: 'Bangles', icon: 'Gem', image: 'https://images.unsplash.com/photo-1611567484858-47635f9c3569?auto=format&fit=crop&w=500&q=60', fallbackImage: 'https://images.unsplash.com/photo-1602173574767-37ac01994b2a?auto=format&fit=crop&w=500&q=60' },
             { name: 'Watches', icon: 'Watch', image: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=500&q=60' },
             { name: 'Gift Items', icon: 'Gift', image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=500&q=60' },
             { name: 'Skin Care', icon: 'Droplet', image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=500&q=60' },
@@ -359,6 +359,30 @@ const HomePage = () => {
                   src={category.image} 
                   alt={category.name} 
                   className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110" 
+                  onError={(e) => {
+                    console.error(`Failed to load image for ${category.name}`);
+                    e.target.onerror = null;
+                    // Try fallback image if available
+                    if (category.fallbackImage) {
+                      e.target.src = category.fallbackImage;
+                      e.target.onerror = () => {
+                        // Try second fallback if available
+                        if (category.secondFallback) {
+                          e.target.src = category.secondFallback;
+                          e.target.onerror = () => {
+                            // Finally use placeholder as last resort
+                            e.target.src = `https://placehold.co/500x500/234781/FFFFFF?text=${encodeURIComponent(category.name)}`;
+                          };
+                        } else {
+                          // Use placeholder if no second fallback
+                          e.target.src = `https://placehold.co/500x500/234781/FFFFFF?text=${encodeURIComponent(category.name)}`;
+                        }
+                      };
+                    } else {
+                      // Use placeholder if no fallbacks available
+                      e.target.src = `https://placehold.co/500x500/234781/FFFFFF?text=${encodeURIComponent(category.name)}`;
+                    }
+                  }}
                 />
                 <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-20">
                   <h3 className="text-lg font-bold mb-1">{category.name}</h3>
