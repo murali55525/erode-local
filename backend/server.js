@@ -21,7 +21,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "118179755200-u2
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5002", "http://localhost:5001"],
+    origin: ["https://erode-local.vercel.app", "https://erode-admin.vercel.app", "http://localhost:5002", "http://localhost:5001"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
